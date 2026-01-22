@@ -1,11 +1,5 @@
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-// Initialize Supabase client
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+import { supabase } from '../lib/supabase'; // ✅ Import shared Supabase client
 
 export default function GreenCounter() {
   const [paperSaved, setPaperSaved] = useState(0);

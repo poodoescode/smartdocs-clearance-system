@@ -1,12 +1,7 @@
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
+import { supabase } from '../lib/supabase'; // ✅ Import shared Supabase client
 import { ConfirmModal } from './Modal';
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
 
 export default function SuperAdminDashboard({ adminId }) {
   const [users, setUsers] = useState([]);

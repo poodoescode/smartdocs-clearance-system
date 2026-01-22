@@ -1,14 +1,9 @@
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
+import { supabase } from '../lib/supabase'; // ✅ Import shared Supabase client
 import PasswordInput from './PasswordInput';
 import PasswordStrengthMeter from './PasswordStrengthMeter';
 import { ConfirmModal } from './Modal';
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
 
 export default function Settings({ user, profile, onClose }) {
   const [activeTab, setActiveTab] = useState('appearance');
@@ -109,7 +104,9 @@ export default function Settings({ user, profile, onClose }) {
 
       if (error) throw error;
 
-      toast.success('Verification email sent to new address');
+      // NOTE: Email verification has been intentionally disabled
+      // Email is updated immediately without verification
+      toast.success('Email updated successfully');
       setNewEmail('');
     } catch (error) {
       toast.error('Failed to update email');
@@ -312,7 +309,7 @@ export default function Settings({ user, profile, onClose }) {
                           required
                         />
                         <p className="text-xs text-gray-500 mt-1">
-                          You'll need to verify your new email address
+                          Your email will be updated immediately
                         </p>
                       </div>
                       <button

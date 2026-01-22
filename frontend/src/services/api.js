@@ -58,3 +58,13 @@ export const getRequestHistory = async (requestId) => {
   const response = await fetch(`${API_URL}/requests/${requestId}/history`);
   return response.json();
 };
+
+// Delete a request (student only - pending or on_hold status)
+export const deleteRequest = async (requestId, studentId) => {
+  const response = await fetch(`${API_URL}/requests/${requestId}/delete`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ student_id: studentId })
+  });
+  return response.json();
+};

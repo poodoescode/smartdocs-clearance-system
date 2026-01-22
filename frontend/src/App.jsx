@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import ReCAPTCHA from 'react-google-recaptcha';
 import toast from 'react-hot-toast';
+import { supabase } from './lib/supabase'; // ✅ Import shared Supabase client
 import StudentDashboard from './components/StudentDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
@@ -10,19 +10,14 @@ import PasswordInput from './components/PasswordInput';
 import PasswordStrengthMeter from './components/PasswordStrengthMeter';
 import Settings from './components/Settings';
 
-// Initialize Supabase client
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
-
 // reCAPTCHA Site Key
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
 function App() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [initializing, setInitializing] = useState(true); // For initial session check
+  const [loading, setLoading] = useState(false); // For form submissions (starts FALSE)
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -37,63 +32,180 @@ function App() {
   const [recaptchaToken, setRecaptchaToken] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const recaptchaRef = useRef(null);
+  const fetchingProfileRef = useRef(false); // Prevent concurrent profile fetches
 
   // Check for existing session on mount
   useEffect(() => {
-    checkUser();
+    let isMounted = true; // Prevent state updates after unmount
     
-    // Listen for auth changes
+    checkUser(isMounted);
+    
+    // Listen for auth changes (registered ONCE)
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
+      if (!isMounted) return; // Don't update if component unmounted
+      
+      console.log('🔔 Auth state changed:', event);
+      
+      // Only handle SIGNED_IN and SIGNED_OUT events
+      if (event === 'SIGNED_IN' && session?.user) {
+        console.log('✅ User signed in:', session.user.email);
         setUser(session.user);
-        await fetchProfile(session.user.id);
+        await fetchProfile(session.user.id, isMounted);
         
         // Update last_login
-        if (event === 'SIGNED_IN') {
-          await supabase
-            .from('profiles')
-            .update({ last_login: new Date().toISOString() })
-            .eq('id', session.user.id);
-        }
-      } else {
+        await supabase
+          .from('profiles')
+          .update({ last_login: new Date().toISOString() })
+          .eq('id', session.user.id)
+          .then(() => console.log('📅 Updated last_login'));
+          
+      } else if (event === 'SIGNED_OUT') {
+        console.log('👋 User signed out');
         setUser(null);
         setProfile(null);
       }
+      // Ignore other events like TOKEN_REFRESHED, USER_UPDATED, etc.
     });
 
+    // Cleanup: unsubscribe and mark as unmounted
     return () => {
+      console.log('🧹 Cleaning up auth listener');
+      isMounted = false;
       authListener?.subscription?.unsubscribe();
     };
-  }, []);
+  }, []); // Empty dependency array - runs ONCE on mount
 
-  const checkUser = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      setUser(session.user);
-      await fetchProfile(session.user.id);
-    }
-    setLoading(false);
-  };
-
-  const fetchProfile = async (userId) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    if (!error && data) {
-      // Check if account is active
-      if (!data.is_active) {
-        toast.error('Your account has been deactivated. Please contact support.');
-        await supabase.auth.signOut();
+  const checkUser = async (isMounted = true) => {
+    console.log('🔍 Checking for existing session...');
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        // Handle AbortError gracefully
+        if (error.name === 'AbortError') {
+          console.warn('⚠️ Session check aborted (likely due to navigation)');
+        } else {
+          console.error('❌ Error getting session:', error);
+        }
         return;
       }
-      setProfile(data);
       
-      // Apply saved theme
-      const theme = data.theme_preference || localStorage.getItem('theme') || 'light';
-      document.documentElement.classList.toggle('dark', theme === 'dark');
+      if (!isMounted) return; // Don't update state if unmounted
+      
+      if (session?.user) {
+        console.log('✅ Found existing session for:', session.user.email);
+        setUser(session.user);
+        
+        // Fetch profile and wait for it to complete
+        try {
+          await fetchProfile(session.user.id, isMounted);
+        } catch (profileError) {
+          console.error('❌ Profile fetch failed in checkUser:', profileError);
+          // Even if profile fetch fails, we still need to clear initializing
+        }
+      } else {
+        console.log('ℹ️ No existing session found');
+      }
+    } catch (error) {
+      // Catch AbortError and other unexpected errors
+      if (error.name === 'AbortError') {
+        console.warn('⚠️ Request aborted:', error.message);
+      } else {
+        console.error('❌ Error in checkUser:', error);
+      }
+    } finally {
+      // ALWAYS set initializing to false, even if there's an error or abort
+      if (isMounted) {
+        setInitializing(false);
+        console.log('✅ Initial session check complete');
+      }
+    }
+  };
+
+  const fetchProfile = async (userId, isMounted = true) => {
+    // Prevent concurrent profile fetches
+    if (fetchingProfileRef.current) {
+      console.log('⏭️ Profile fetch already in progress, skipping...');
+      return;
+    }
+    
+    fetchingProfileRef.current = true;
+    console.log('📊 Fetching profile for user ID:', userId);
+    
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, role, student_number, course_year, is_active')
+        .eq('id', userId)
+        .single()
+        .abortSignal(AbortSignal.timeout(3000)); // 3 second timeout
+
+      console.log('📊 Profile query result:', { data, error });
+
+      if (error) {
+        // Handle AbortError gracefully
+        if (error.name === 'AbortError' || error.code === 'ABORT_ERR' || error.code === '20') {
+          console.warn('⚠️ Profile fetch aborted or timed out');
+          toast.error('Profile fetch timed out. Please check your connection and try again.');
+          
+          if (isMounted) {
+            await supabase.auth.signOut();
+            setUser(null);
+            setProfile(null);
+          }
+          return;
+        }
+        
+        console.error('❌ Error fetching profile:', error);
+        toast.error('Failed to load profile. Please try signing in again.');
+        
+        if (isMounted) {
+          await supabase.auth.signOut();
+          setUser(null);
+          setProfile(null);
+        }
+        return;
+      }
+
+      if (!isMounted) return;
+
+      if (!data) {
+        console.error('❌ No profile data found for user:', userId);
+        toast.error('Profile not found. Please contact support.');
+        await supabase.auth.signOut();
+        setUser(null);
+        setProfile(null);
+        return;
+      }
+
+      if (!data.is_active) {
+        console.warn('⚠️ Account is deactivated');
+        toast.error('Your account has been deactivated. Please contact support.');
+        await supabase.auth.signOut();
+        setUser(null);
+        setProfile(null);
+        return;
+      }
+      
+      console.log('✅ Profile loaded successfully:', data.full_name, '-', data.role);
+      setProfile(data);
+    } catch (error) {
+      console.error('❌ Unexpected error in fetchProfile:', error);
+      
+      if (error.name === 'AbortError' || error.code === 'ABORT_ERR') {
+        console.warn('⚠️ Profile fetch aborted');
+        toast.error('Profile fetch timed out. Please try again.');
+      } else {
+        toast.error('An error occurred. Please try again.');
+      }
+      
+      if (isMounted) {
+        await supabase.auth.signOut();
+        setUser(null);
+        setProfile(null);
+      }
+    } finally {
+      fetchingProfileRef.current = false;
     }
   };
 
@@ -102,25 +214,27 @@ function App() {
     setLoading(true);
     
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      console.log('🔐 Starting sign in...');
+      
+      // ONLY call signInWithPassword
+      // Let onAuthStateChange handle setting user and fetching profile
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
       if (error) {
-        if (error.message.includes('Email not confirmed')) {
-          toast.error('Please verify your email before signing in. Check your inbox for the verification link.');
-        } else {
-          toast.error(error.message);
-        }
+        console.error('❌ Sign in error:', error);
+        toast.error(error.message);
         throw error;
       }
       
-      setUser(data.user);
-      await fetchProfile(data.user.id);
+      // Success! onAuthStateChange will handle the rest
+      console.log('✅ Sign in successful - onAuthStateChange will handle profile fetch');
       toast.success('Welcome back!');
+      
     } catch (error) {
-      console.error('Sign in error:', error);
+      console.error('❌ Sign in error:', error);
     } finally {
       setLoading(false);
     }
@@ -191,8 +305,10 @@ function App() {
       }
 
       // Success - show message and switch to sign in
-      toast.success('Account created! Check your email to verify your account before signing in.', {
-        duration: 6000
+      // NOTE: Email verification has been intentionally disabled
+      // Users can login immediately after signup
+      toast.success('Account created successfully! You can now sign in.', {
+        duration: 4000
       });
       setIsSignUp(false);
       setEmail('');
@@ -243,8 +359,8 @@ function App() {
     toast.error('reCAPTCHA error. Please try again.');
   };
 
-  // Loading state
-  if (loading && !user) {
+  // Loading state during initial session check
+  if (initializing) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-green-50">
         <div className="text-center">

@@ -21,6 +21,15 @@ async function getAdminRole(userId) {
   return data.role;
 }
 
+// HELPER: Format admin role for display (remove _admin suffix)
+function formatAdminRole(role) {
+  if (!role) return 'Admin';
+  // Remove _admin suffix and capitalize
+  return role.replace('_admin', '').split('_').map(word => 
+    word.charAt(0).toUpperCase() + word.slice(1)
+  ).join(' ');
+}
+
 // HELPER: Log action to request_history
 async function logHistory(requestId, processedBy, previousStatus, newStatus, actionTaken, comments = null) {
   await supabase.from('request_history').insert({
@@ -119,7 +128,7 @@ router.post('/:id/approve', async (req, res) => {
       request.current_status,
       isLastStage ? 'completed' : 'approved',
       'approved',
-      `Approved by ${adminRole} at ${currentStage} stage`
+      `Approved by ${formatAdminRole(adminRole)} at ${currentStage} stage`
     );
 
     res.json({ 
@@ -326,6 +335,55 @@ router.get('/:id/history', async (req, res) => {
     if (error) throw error;
 
     res.json({ success: true, history: data });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/requests/:id/delete - Delete request (student only, pending/on_hold only)
+router.delete('/:id/delete', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { student_id } = req.body;
+
+    // Get current request
+    const { data: request, error: reqError } = await supabase
+      .from('requests')
+      .select('*')
+      .eq('id', id)
+      .eq('student_id', student_id) // Ensure student owns this request
+      .single();
+
+    if (reqError) throw reqError;
+
+    if (!request) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Request not found or you do not have permission to delete it' 
+      });
+    }
+
+    // Only allow deletion if status is pending or on_hold
+    if (request.current_status !== 'pending' && request.current_status !== 'on_hold') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Can only delete requests that are pending or on hold' 
+      });
+    }
+
+    // Delete the request (CASCADE will delete history)
+    const { error: deleteError } = await supabase
+      .from('requests')
+      .delete()
+      .eq('id', id)
+      .eq('student_id', student_id);
+
+    if (deleteError) throw deleteError;
+
+    res.json({ 
+      success: true, 
+      message: 'Request deleted successfully'
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

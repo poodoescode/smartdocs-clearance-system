@@ -120,10 +120,12 @@ router.post('/signup', async (req, res) => {
     }
 
     // Create auth user in Supabase
+    // NOTE: Email verification has been intentionally disabled
+    // Users can login immediately after signup
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
-      email_confirm: false // Require email verification
+      email_confirm: true // Auto-confirm email (no verification required)
     });
 
     if (authError) {
@@ -163,7 +165,7 @@ router.post('/signup', async (req, res) => {
 
     res.json({ 
       success: true, 
-      message: 'Account created successfully! Please check your email to verify your account before signing in.',
+      message: 'Account created successfully! You can now sign in.',
       user: {
         id: authData.user.id,
         email: authData.user.email,

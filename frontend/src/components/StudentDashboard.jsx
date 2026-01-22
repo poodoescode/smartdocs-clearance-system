@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
-import { createRequest, getStudentRequests, resubmitRequest } from '../services/api';
+import toast from 'react-hot-toast';
+import { createRequest, getStudentRequests, resubmitRequest, deleteRequest } from '../services/api';
+import { ConfirmModal } from './Modal';
+import Announcements from './Announcements';
+import RequestHistory from './RequestHistory';
 
 export default function StudentDashboard({ studentId, studentInfo }) {
   const [requests, setRequests] = useState([]);
@@ -11,6 +15,7 @@ export default function StudentDashboard({ studentId, studentInfo }) {
   const [selectedDocType, setSelectedDocType] = useState('');
   const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, requestId: null, requestName: '' });
 
   useEffect(() => {
     fetchRequests();
@@ -38,11 +43,12 @@ export default function StudentDashboard({ studentId, studentInfo }) {
         setSelectedDocType('');
         setShowCreateForm(false);
         fetchRequests();
-        // Success notification
-        showNotification('Request created successfully!', 'success');
+        toast.success('Request created successfully!');
+      } else {
+        toast.error(response.error || 'Failed to create request');
       }
     } catch (error) {
-      showNotification('Error creating request: ' + error.message, 'error');
+      toast.error('Error creating request: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -54,18 +60,48 @@ export default function StudentDashboard({ studentId, studentInfo }) {
       const response = await resubmitRequest(requestId, studentId);
       if (response.success) {
         fetchRequests();
-        showNotification('Request resubmitted successfully!', 'success');
+        toast.success('Request resubmitted successfully!');
+      } else {
+        toast.error(response.error || 'Failed to resubmit request');
       }
     } catch (error) {
-      showNotification('Error resubmitting: ' + error.message, 'error');
+      toast.error('Error resubmitting: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (requestId, requestName) => {
+    setDeleteConfirm({ show: true, requestId, requestName });
+  };
+
+  const confirmDelete = async () => {
+    const { requestId } = deleteConfirm;
+    setDeleteConfirm({ show: false, requestId: null, requestName: '' });
+    
+    setLoading(true);
+    try {
+      const response = await deleteRequest(requestId, studentId);
+      if (response.success) {
+        fetchRequests();
+        toast.success('Request deleted successfully!');
+      } else {
+        toast.error(response.error || 'Failed to delete request');
+      }
+    } catch (error) {
+      toast.error('Error deleting request: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   const showNotification = (message, type) => {
-    // Simple alert for now - can be replaced with toast library
-    alert(message);
+    // Deprecated - using toast directly now
+    if (type === 'success') {
+      toast.success(message);
+    } else {
+      toast.error(message);
+    }
   };
 
   const calculateProgress = (request) => {
@@ -93,6 +129,9 @@ export default function StudentDashboard({ studentId, studentInfo }) {
 
   return (
     <div className="space-y-6">
+      {/* Announcements */}
+      <Announcements userRole="student" />
+
       {/* Welcome Card */}
       <div className="card bg-gradient-to-r from-primary-500 to-green-600 text-white">
         <div className="flex items-center justify-between">
@@ -245,18 +284,33 @@ export default function StudentDashboard({ studentId, studentInfo }) {
                   </p>
                 </div>
 
-                {/* Resubmit Button */}
-                {request.current_status === 'on_hold' && (
-                  <div className="pt-4 border-t border-gray-200">
+                {/* Action Buttons */}
+                {(request.current_status === 'pending' || request.current_status === 'on_hold') && (
+                  <div className="pt-4 border-t border-gray-200 flex gap-3">
+                    {/* Resubmit Button (only for on_hold) */}
+                    {request.current_status === 'on_hold' && (
+                      <button 
+                        onClick={() => handleResubmit(request.id)}
+                        disabled={loading}
+                        className="btn-warning flex-1 sm:flex-none flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Resubmit
+                      </button>
+                    )}
+                    
+                    {/* Delete Button (for pending or on_hold) */}
                     <button 
-                      onClick={() => handleResubmit(request.id)}
+                      onClick={() => handleDelete(request.id, request.document_types.name)}
                       disabled={loading}
-                      className="btn-warning w-full sm:w-auto"
+                      className="btn-danger flex-1 sm:flex-none flex items-center justify-center gap-2"
                     >
-                      <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
-                      Resubmit Request
+                      Delete
                     </button>
                   </div>
                 )}
@@ -265,6 +319,21 @@ export default function StudentDashboard({ studentId, studentInfo }) {
           </div>
         )}
       </div>
+
+      {/* Request History */}
+      <RequestHistory studentId={studentId} isAdmin={false} />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({ show: false, requestId: null, requestName: '' })}
+        onConfirm={confirmDelete}
+        title="Delete Request"
+        message={`Are you sure you want to delete "${deleteConfirm.requestName}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
     </div>
   );
 }

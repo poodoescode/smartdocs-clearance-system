@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { getAdminRequests, approveRequest, rejectRequest } from '../services/api';
+import { ConfirmModal } from './Modal';
+import Announcements from './Announcements';
+import RequestHistory from './RequestHistory';
 
 export default function AdminDashboard({ adminId, adminRole }) {
   const [requests, setRequests] = useState([]);
@@ -7,6 +11,7 @@ export default function AdminDashboard({ adminId, adminRole }) {
   const [rejectingId, setRejectingId] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [filter, setFilter] = useState('all');
+  const [approveConfirm, setApproveConfirm] = useState({ show: false, requestId: null });
 
   useEffect(() => {
     fetchRequests();
@@ -24,19 +29,24 @@ export default function AdminDashboard({ adminId, adminRole }) {
   };
 
   const handleApprove = async (requestId) => {
-    if (!confirm('Are you sure you want to approve this request?')) return;
+    setApproveConfirm({ show: true, requestId });
+  };
 
+  const confirmApprove = async () => {
+    const { requestId } = approveConfirm;
+    setApproveConfirm({ show: false, requestId: null });
+    
     setLoading(true);
     try {
       const response = await approveRequest(requestId, adminId);
       if (response.success) {
-        showNotification(response.message || 'Request approved!', 'success');
+        toast.success(response.message || 'Request approved!');
         fetchRequests();
       } else {
-        showNotification('Error: ' + response.error, 'error');
+        toast.error(response.error || 'Failed to approve request');
       }
     } catch (error) {
-      showNotification('Error approving request: ' + error.message, 'error');
+      toast.error('Error approving request: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -44,7 +54,7 @@ export default function AdminDashboard({ adminId, adminRole }) {
 
   const handleReject = async (requestId) => {
     if (!rejectReason.trim()) {
-      showNotification('Please provide a rejection reason', 'error');
+      toast.error('Please provide a rejection reason');
       return;
     }
 
@@ -52,22 +62,27 @@ export default function AdminDashboard({ adminId, adminRole }) {
     try {
       const response = await rejectRequest(requestId, adminId, rejectReason);
       if (response.success) {
-        showNotification('Request rejected', 'success');
+        toast.success('Request rejected');
         setRejectingId(null);
         setRejectReason('');
         fetchRequests();
       } else {
-        showNotification('Error: ' + response.error, 'error');
+        toast.error(response.error || 'Failed to reject request');
       }
     } catch (error) {
-      showNotification('Error rejecting request: ' + error.message, 'error');
+      toast.error('Error rejecting request: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   const showNotification = (message, type) => {
-    alert(message);
+    // Deprecated - using toast directly now
+    if (type === 'success') {
+      toast.success(message);
+    } else {
+      toast.error(message);
+    }
   };
 
   const getStageName = () => {
@@ -98,6 +113,9 @@ export default function AdminDashboard({ adminId, adminRole }) {
 
   return (
     <div className="space-y-6">
+      {/* Announcements */}
+      <Announcements userRole={adminRole} />
+
       {/* Admin Header Card */}
       <div className="card bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
         <div className="flex items-center justify-between">
@@ -292,6 +310,21 @@ export default function AdminDashboard({ adminId, adminRole }) {
           </div>
         )}
       </div>
+
+      {/* Request History - Shows all requests for admins */}
+      <RequestHistory isAdmin={true} />
+
+      {/* Approve Confirmation Modal */}
+      <ConfirmModal
+        isOpen={approveConfirm.show}
+        onClose={() => setApproveConfirm({ show: false, requestId: null })}
+        onConfirm={confirmApprove}
+        title="Approve Request"
+        message="Are you sure you want to approve this request? It will move to the next stage."
+        confirmText="Approve"
+        cancelText="Cancel"
+        type="info"
+      />
     </div>
   );
 }
