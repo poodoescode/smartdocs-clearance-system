@@ -2,6 +2,12 @@
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
+const { 
+  notifyRequestSubmitted, 
+  notifyRequestApproved, 
+  notifyRequestRejected 
+} = require('../services/notificationService');
+const { generateCertificate } = require('../services/certificateService');
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -61,6 +67,9 @@ router.post('/create', async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    // Send notification
+    await notifyRequestSubmitted(data.id, student_id);
 
     res.json({ success: true, request: data });
   } catch (error) {
@@ -131,6 +140,14 @@ router.post('/:id/approve', async (req, res) => {
       `Approved by ${formatAdminRole(adminRole)} at ${currentStage} stage`
     );
 
+    // Send notification
+    await notifyRequestApproved(id, request.student_id, currentStage, isLastStage);
+
+    // Auto-generate certificate if completed
+    if (isLastStage) {
+      await generateCertificate(id);
+    }
+
     res.json({ 
       success: true, 
       request: updated,
@@ -198,6 +215,9 @@ router.post('/:id/reject', async (req, res) => {
       'rejected',
       reason
     );
+
+    // Send notification
+    await notifyRequestRejected(id, request.student_id, currentStage, reason);
 
     res.json({ 
       success: true, 

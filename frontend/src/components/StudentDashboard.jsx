@@ -4,6 +4,9 @@ import { createRequest, getStudentRequests, resubmitRequest, deleteRequest } fro
 import { ConfirmModal } from './Modal';
 import Announcements from './Announcements';
 import RequestHistory from './RequestHistory';
+import DocumentUpload from './DocumentUpload';
+import RequestComments from './RequestComments';
+import CertificateDownload from './CertificateDownload';
 
 export default function StudentDashboard({ studentId, studentInfo }) {
   const [requests, setRequests] = useState([]);
@@ -282,6 +285,36 @@ export default function StudentDashboard({ studentId, studentInfo }) {
                   <p className="text-xs text-gray-500 mt-1 text-right">
                     {calculateProgress(request)}% Complete
                   </p>
+                </div>
+
+                {/* Certificate Download - Only for completed requests */}
+                {request.is_completed && (
+                  <div className="mt-4">
+                    <CertificateDownload
+                      requestId={request.id}
+                      userId={studentId}
+                      isCompleted={request.is_completed}
+                    />
+                  </div>
+                )}
+
+                {/* Document Upload */}
+                <div className="mt-4">
+                  <DocumentUpload
+                    requestId={request.id}
+                    userId={studentId}
+                    isOwner={true}
+                    isAdmin={false}
+                  />
+                </div>
+
+                {/* Comments Section */}
+                <div className="mt-4">
+                  <RequestComments
+                    requestId={request.id}
+                    userId={studentId}
+                    userRole="student"
+                  />
                 </div>
 
                 {/* Action Buttons */}

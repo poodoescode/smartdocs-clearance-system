@@ -4,6 +4,8 @@ import { getAdminRequests, approveRequest, rejectRequest } from '../services/api
 import { ConfirmModal } from './Modal';
 import Announcements from './Announcements';
 import RequestHistory from './RequestHistory';
+import DocumentUpload from './DocumentUpload';
+import RequestComments from './RequestComments';
 
 export default function AdminDashboard({ adminId, adminRole }) {
   const [requests, setRequests] = useState([]);
@@ -305,6 +307,25 @@ export default function AdminDashboard({ adminId, adminRole }) {
                     </div>
                   </div>
                 )}
+
+                {/* Document Upload - Admins can also upload */}
+                <div className="mt-4">
+                  <DocumentUpload
+                    requestId={request.id}
+                    userId={adminId}
+                    isOwner={false}
+                    isAdmin={true}
+                  />
+                </div>
+
+                {/* Comments Section */}
+                <div className="mt-4">
+                  <RequestComments
+                    requestId={request.id}
+                    userId={adminId}
+                    userRole={adminRole}
+                  />
+                </div>
               </div>
             ))}
           </div>
