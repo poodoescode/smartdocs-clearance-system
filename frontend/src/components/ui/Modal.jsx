@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Modal({ 
   isOpen, 
@@ -8,22 +9,53 @@ export default function Modal({
   onConfirm,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
-  confirmButtonClass = 'btn-primary',
+  confirmButtonClass = 'bg-primary-600 hover:bg-primary-700 text-white',
   showCancel = true,
-  size = 'md' // 'sm', 'md', 'lg', 'xl'
+  size = 'md', // 'sm', 'md', 'lg', 'xl'
+  isDark = false
 }) {
   useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
     if (isOpen) {
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+      
+      // Compensate for fixed elements (like the header)
+      const fixedElements = document.querySelectorAll('.fixed-compensate');
+      fixedElements.forEach(el => {
+        el.style.marginRight = `${scrollbarWidth}px`;
+      });
+
       document.body.style.overflow = 'hidden';
+      document.addEventListener('keydown', handleEscape);
     } else {
+      document.body.style.paddingRight = '0px';
+      
+      const fixedElements = document.querySelectorAll('.fixed-compensate');
+      fixedElements.forEach(el => {
+        el.style.marginRight = '0px';
+      });
+
       document.body.style.overflow = 'unset';
+      document.removeEventListener('keydown', handleEscape);
     }
     return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
+      document.body.style.paddingRight = '0px';
+      
+      const fixedElements = document.querySelectorAll('.fixed-compensate');
+      fixedElements.forEach(el => {
+        el.style.marginRight = '0px';
+      });
 
-  if (!isOpen) return null;
+      document.body.style.overflow = 'unset';
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isOpen, onClose]);
 
   const sizeClasses = {
     sm: 'max-w-md',
@@ -33,59 +65,80 @@ export default function Modal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div className="flex min-h-full items-center justify-center p-4">
-        <div 
-          className={`relative bg-white rounded-xl shadow-2xl ${sizeClasses[size]} w-full animate-slide-up`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
-            <h3 className="text-xl font-bold text-gray-900">{title}</h3>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="p-6">
-            {children}
-          </div>
-
-          {/* Footer */}
-          {onConfirm && (
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50 rounded-b-xl">
-              {showCancel && (
-                <button
-                  onClick={onClose}
-                  className="btn-secondary"
-                >
-                  {cancelText}
-                </button>
-              )}
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            onClick={onClose}
+          />
+          
+          {/* Modal */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ duration: 0.2 }}
+            className={`relative w-full rounded-2xl shadow-2xl ${sizeClasses[size]} overflow-hidden border ${
+              isDark 
+                ? 'bg-slate-900 border-slate-700 text-slate-100' 
+                : 'bg-white border-slate-100 text-slate-900'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className={`flex items-center justify-between p-6 border-b ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+              <h3 className={`text-xl font-bold font-display ${isDark ? 'text-white' : 'text-slate-900'}`}>{title}</h3>
               <button
-                onClick={onConfirm}
-                className={confirmButtonClass}
+                onClick={onClose}
+                className={`transition-colors rounded-lg p-1 ${
+                  isDark 
+                    ? 'text-slate-400 hover:text-white hover:bg-slate-800' 
+                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                }`}
               >
-                {confirmText}
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
-          )}
+
+            {/* Content */}
+            <div className="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              {children}
+            </div>
+
+            {/* Footer */}
+            {onConfirm && (
+              <div className={`flex items-center justify-end gap-3 p-6 border-t ${isDark ? 'border-slate-800 bg-slate-900/50' : 'border-slate-100 bg-slate-50/50'}`}>
+                {showCancel && (
+                  <button
+                    onClick={onClose}
+                    className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${
+                      isDark 
+                        ? 'text-slate-300 hover:text-white hover:bg-slate-800' 
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    {cancelText}
+                  </button>
+                )}
+                <button
+                  onClick={onConfirm}
+                  className={`px-6 py-2 rounded-lg font-bold text-sm shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all ${confirmButtonClass}`}
+                >
+                  {confirmText}
+                </button>
+              </div>
+            )}
+          </motion.div>
         </div>
-      </div>
-    </div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -98,7 +151,8 @@ export function ConfirmModal({
   message, 
   confirmText = 'Confirm',
   cancelText = 'Cancel',
-  type = 'danger' // 'danger', 'warning', 'info'
+  type = 'danger', // 'danger', 'warning', 'info'
+  isDark = false
 }) {
   const typeConfig = {
     danger: {
@@ -107,7 +161,7 @@ export function ConfirmModal({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
       ),
-      buttonClass: 'btn-danger'
+      buttonClass: 'bg-red-600 hover:bg-red-700 text-white'
     },
     warning: {
       icon: (
@@ -115,7 +169,7 @@ export function ConfirmModal({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
       ),
-      buttonClass: 'btn-warning'
+      buttonClass: 'bg-yellow-600 hover:bg-yellow-700 text-white'
     },
     info: {
       icon: (
@@ -123,7 +177,7 @@ export function ConfirmModal({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       ),
-      buttonClass: 'btn-primary'
+      buttonClass: 'bg-primary-600 hover:bg-primary-700 text-white'
     }
   };
 
@@ -139,13 +193,14 @@ export function ConfirmModal({
       cancelText={cancelText}
       confirmButtonClass={config.buttonClass}
       size="sm"
+      isDark={isDark}
     >
       <div className="flex items-start gap-4">
         <div className="flex-shrink-0">
           {config.icon}
         </div>
         <div className="flex-1">
-          <p className="text-gray-700">{message}</p>
+          <p className={isDark ? "text-slate-300" : "text-gray-700"}>{message}</p>
         </div>
       </div>
     </Modal>

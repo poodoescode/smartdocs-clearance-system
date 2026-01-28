@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import ThemeToggle from '../components/ui/ThemeToggle';
+import { SlideTabs } from '../components/ui/SlideTabs';
+import Modal from '../components/ui/Modal';
 import logo from '../assets/logo.png';
 import isuLogo from '../assets/isu-logo.jpg';
 
@@ -12,7 +14,57 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
   const headerOpacity = useTransform(scrollY, [0, 50], [0, 1]);
   // Dynamic shadow/bg logic inside render based on isDark/isScrolled
 
+  // Dynamic shadow/bg logic inside render based on isDark/isScrolled
+  
   const [isScrolled, setIsScrolled] = useState(false);
+  const [activeModal, setActiveModal] = useState(null); // 'privacy' | 'terms' | null
+
+  // Legal Content
+  const legalContent = {
+    privacy: (
+      <div className="space-y-4 text-sm leading-relaxed">
+        <p><strong>Effective Date:</strong> January 2026</p>
+        <p>At SmartDocs (Isabela State University - Echague Campus), we value your privacy and are committed to protecting your personal data. This Privacy Policy explains how we collect, use, and safeguard your information when you use our digital clearance system.</p>
+        
+        <h4 className="font-bold text-lg mt-4">1. Information We Collect</h4>
+        <ul className="list-disc pl-5 space-y-1">
+          <li><strong>Personal Identification:</strong> Name, Student ID, Course, and Year Level.</li>
+          <li><strong>Academic Records:</strong> Clearance status, grades (if applicable for verification), and enrollment data.</li>
+          <li><strong>Digital Logs:</strong> Login timestamps and transaction history within the system.</li>
+        </ul>
+
+        <h4 className="font-bold text-lg mt-4">2. How We Use Your Data</h4>
+        <p>Your data is used solely for:</p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>Processing academic clearance applications.</li>
+          <li>Verifying student identity and enrollment status.</li>
+          <li>Generating digital certificates and reports for university administration.</li>
+        </ul>
+
+        <h4 className="font-bold text-lg mt-4">3. Data Security</h4>
+        <p>We implement strict security measures, including encryption and role-based access control, to prevent unauthorized access or disclosure of your information.</p>
+      </div>
+    ),
+    terms: (
+      <div className="space-y-4 text-sm leading-relaxed">
+        <p><strong>Last Updated:</strong> January 2026</p>
+        <p>Welcome to SmartDocs. By accessing the system, you agree to these Terms of Use. Please read them carefully.</p>
+        
+        <h4 className="font-bold text-lg mt-4">1. Authorized Use</h4>
+        <p>SmartDocs is strictly for the use of actively enrolled students, faculty, and staff of Isabela State University - Echague Campus. Unauthorized access is prohibited.</p>
+
+        <h4 className="font-bold text-lg mt-4">2. User Responsibilities</h4>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>You are responsible for maintaining the confidentiality of your login credentials.</li>
+          <li>You agree to provide accurate and truthful information during the clearance process.</li>
+          <li>Any attempt to falsify records or bypass system security will result in disciplinary action.</li>
+        </ul>
+
+        <h4 className="font-bold text-lg mt-4">3. System Availability</h4>
+        <p>While we strive for 24/7 availability, the University reserves the right to suspend the system for maintenance or updates without prior notice.</p>
+      </div>
+    )
+  };
 
   useEffect(() => {
     const updateScroll = () => {
@@ -52,7 +104,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
       <div className={`absolute bottom-0 left-0 w-[500px] h-[500px] rounded-full blur-[100px] -z-10 -translate-x-1/3 transition-colors duration-500 ${isDark ? 'bg-secondary-900/20' : 'bg-secondary-100/50'}`} />
 
       <header 
-        className={`fixed top-6 left-6 right-6 md:left-12 md:right-12 lg:left-20 lg:right-20 z-50 rounded-2xl transition-all duration-300 py-3 backdrop-blur-xl border shadow-xl ${
+        className={`fixed-compensate fixed top-6 left-6 right-6 md:left-12 md:right-12 lg:left-20 lg:right-20 z-50 rounded-2xl transition-colors duration-300 py-3 backdrop-blur-xl border shadow-xl ${
             isDark 
               ? 'bg-slate-900/60 border-white/10 shadow-black/20' 
               : 'bg-white/60 border-white/40 shadow-slate-200/40'
@@ -73,10 +125,8 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
             </div>
           </div>
 
-          <nav className={`hidden md:flex items-center gap-8 text-sm font-semibold tracking-wide ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-            <a href="#" onClick={(e) => { e.preventDefault(); history.pushState(null, '', window.location.pathname); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-primary-600 transition-colors">HOME</a>
-            <a href="#features" className="hover:text-primary-600 transition-colors">FEATURES</a>
-            <a href="#about" className="hover:text-primary-600 transition-colors">ABOUT ISUE</a>
+          <nav className="hidden md:flex items-center gap-4">
+            <SlideTabs isDark={isDark} />
             
             <div className="pl-4 border-l border-slate-200/20">
                <ThemeToggle isDark={isDark} toggle={toggleTheme} />
@@ -406,7 +456,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
             <div className="col-span-2">
               <div className="flex items-center gap-2 mb-6">
                  <img src={logo} alt="SmartDocs Logo" className="h-8 w-8 object-contain" />
-                 <span className={`text-xl font-bold font-display ${isDark ? 'text-white' : 'text-slate-800'}`}>SMARTDOCS</span>
+                 <span className={`text-xl font-bold font-display ${isDark ? 'text-white' : 'text-slate-800'}`}>SMART<span className="text-primary-600">DOCS</span></span>
               </div>
               <p className="text-slate-500 text-sm leading-relaxed max-w-sm mb-6">
                 The official digital clearance system of Isabela State University - Echague Campus. 
@@ -478,12 +528,26 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
           <div className="border-t border-slate-100 pt-4 pb-4 flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-bold text-slate-400 tracking-wider">
             <p>&copy; 2026 ISABELA STATE UNIVERSITY. ALL RIGHTS RESERVED.</p>
             <div className="flex gap-6">
-              <a href="#" className="hover:text-slate-600">PRIVACY POLICY</a>
-              <a href="#" className="hover:text-slate-600">TERMS OF USE</a>
+              <button onClick={() => setActiveModal('privacy')} className="hover:text-slate-600 transition-colors uppercase">PRIVACY POLICY</button>
+              <button onClick={() => setActiveModal('terms')} className="hover:text-slate-600 transition-colors uppercase">TERMS OF USE</button>
             </div>
           </div>
         </div>
       </footer>
+
+      {/* Legal Modals */}
+      <Modal
+        isOpen={!!activeModal}
+        onClose={() => setActiveModal(null)}
+        title={activeModal === 'privacy' ? 'Privacy Policy' : 'Terms of Use'}
+        isDark={isDark}
+        showCancel={false}
+        confirmText="I UNDERSTAND"
+        onConfirm={() => setActiveModal(null)}
+        size="lg"
+      >
+        {activeModal && legalContent[activeModal]}
+      </Modal>
     </div>
   );
 };
