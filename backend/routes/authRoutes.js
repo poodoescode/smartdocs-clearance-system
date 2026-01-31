@@ -42,7 +42,8 @@ router.post('/signup', async (req, res) => {
       role, 
       studentNumber, 
       courseYear,
-      recaptchaToken 
+      recaptchaToken,
+      adminSecretCode 
     } = req.body;
 
     // Validate required fields
@@ -50,6 +51,57 @@ router.post('/signup', async (req, res) => {
       return res.status(400).json({ 
         success: false, 
         error: 'Missing required fields' 
+      });
+    }
+
+    // ADMIN-ONLY SIGNUP VALIDATION
+    // Only admin roles can signup, students must be created by admins
+    const adminRoles = ['library_admin', 'cashier_admin', 'registrar_admin', 'super_admin'];
+    
+    if (!adminRoles.includes(role)) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Student accounts must be created by administration. Please contact your admin office.' 
+      });
+    }
+
+    // Validate admin secret code
+    if (!adminSecretCode || adminSecretCode.trim().length < 8) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Valid admin secret code is required' 
+      });
+    }
+
+    // Verify admin secret code from database
+    const { data: codeData, error: codeError } = await supabase
+      .from('admin_secret_codes')
+      .select('*')
+      .eq('code', adminSecretCode)
+      .eq('role', role)
+      .eq('is_active', true)
+      .single();
+
+    if (codeError || !codeData) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Invalid or expired admin secret code' 
+      });
+    }
+
+    // Check if code has expired
+    if (codeData.expires_at && new Date(codeData.expires_at) < new Date()) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Admin secret code has expired' 
+      });
+    }
+
+    // Check if code has reached max uses
+    if (codeData.current_uses >= codeData.max_uses) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Admin secret code has reached maximum uses' 
       });
     }
 
@@ -109,23 +161,11 @@ router.post('/signup', async (req, res) => {
       });
     }
 
-    // Validate student-specific fields
-    if (role === 'student') {
-      if (!studentNumber || !courseYear) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Student number and course/year are required for students' 
-        });
-      }
-    }
-
     // Create auth user in Supabase
-    // NOTE: Email verification has been intentionally disabled
-    // Users can login immediately after signup
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
-      email_confirm: true // Auto-confirm email (no verification required)
+      email_confirm: true // Auto-confirm email
     });
 
     if (authError) {
@@ -136,7 +176,7 @@ router.post('/signup', async (req, res) => {
       });
     }
 
-    // Create user profile
+    // Create user profile with admin flags
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
     
     const { data: profileData, error: profileError } = await supabase
@@ -145,8 +185,11 @@ router.post('/signup', async (req, res) => {
         id: authData.user.id,
         full_name: fullName,
         role: role,
-        student_number: role === 'student' ? studentNumber : null,
-        course_year: role === 'student' ? courseYear : null
+        student_number: null,
+        course_year: null,
+        created_by_admin: true,
+        account_verified: true,
+        verification_method: 'admin_secret_code'
       })
       .select()
       .single();
@@ -163,13 +206,35 @@ router.post('/signup', async (req, res) => {
       });
     }
 
+    // Update admin secret code usage
+    await supabase
+      .from('admin_secret_codes')
+      .update({
+        current_uses: codeData.current_uses + 1,
+        used_by: authData.user.id,
+        used_at: new Date().toISOString()
+      })
+      .eq('id', codeData.id);
+
+    // Log authentication event
+    await supabase.from('auth_audit_log').insert({
+      user_id: authData.user.id,
+      action: 'admin_signup',
+      success: true,
+      metadata: {
+        role: role,
+        secret_code_used: codeData.id
+      }
+    });
+
     res.json({ 
       success: true, 
-      message: 'Account created successfully! You can now sign in.',
+      message: 'Admin account created successfully! You can now sign in.',
       user: {
         id: authData.user.id,
         email: authData.user.email,
-        fullName: fullName
+        fullName: fullName,
+        role: role
       }
     });
 

@@ -5,7 +5,7 @@ import SignupForm from "../../components/auth/SignupForm";
 import Particles from "../../components/visuals/Particles";
 import logo from "../../assets/logo.png";
 
-export default function AuthPage({ onBackToHome, isDark }) {
+export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
   const [isSignUp, setIsSignUp] = useState(() => {
     // Persist auth mode in sessionStorage so refresh keeps you on the same form
     return sessionStorage.getItem('authMode') === 'signup';
@@ -19,6 +19,16 @@ export default function AuthPage({ onBackToHome, isDark }) {
   useEffect(() => {
     document.title = isSignUp ? "SmartDocs | Signup" : "SmartDocs | Login";
   }, [isSignUp]);
+
+  // Role-based signup restriction
+  const canSignUp = selectedRole === 'admin';
+  
+  // Override isSignUp if student tries to access signup
+  useEffect(() => {
+    if (selectedRole === 'student' && isSignUp) {
+      setIsSignUp(false);
+    }
+  }, [selectedRole, isSignUp]);
 
   return (
     <div className={`relative flex min-h-screen items-center justify-center p-4 overflow-x-hidden transition-colors duration-500 ${isDark ? 'bg-slate-950' : 'bg-[#f8fafc]'}`}>
@@ -108,13 +118,26 @@ export default function AuthPage({ onBackToHome, isDark }) {
             <p
               className={`text-sm font-medium transition-colors ${isDark ? "text-slate-400" : "text-gray-500"}`}
             >
-              {isSignUp ? "Already have an account?" : "Don't have an account?"}
-              <button
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="text-green-600 hover:text-green-500 ml-1 font-bold transition-colors"
-              >
-                {isSignUp ? "Sign in" : "Sign up"}
-              </button>
+              {selectedRole === 'student' ? (
+                <span className="text-amber-500">
+                  Student accounts are created by administration. Please login with your credentials.
+                </span>
+              ) : (
+                <>
+                  {isSignUp ? "Already have an account?" : "Don't have an account?"}
+                  <button
+                    onClick={() => canSignUp && setIsSignUp(!isSignUp)}
+                    disabled={!canSignUp}
+                    className={`ml-1 font-bold transition-colors ${
+                      canSignUp 
+                        ? 'text-green-600 hover:text-green-500' 
+                        : 'text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    {isSignUp ? "Sign in" : "Sign up"}
+                  </button>
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -131,8 +154,9 @@ export default function AuthPage({ onBackToHome, isDark }) {
                 transition={{ duration: 0.3, ease: "easeInOut" }}
               >
                 <LoginForm
-                  onSwitchMode={() => setIsSignUp(true)}
+                  onSwitchMode={() => canSignUp && setIsSignUp(true)}
                   isDark={isDark}
+                  selectedRole={selectedRole}
                 />
               </motion.div>
             ) : (
@@ -146,6 +170,7 @@ export default function AuthPage({ onBackToHome, isDark }) {
                 <SignupForm
                   onSwitchMode={() => setIsSignUp(false)}
                   isDark={isDark}
+                  selectedRole={selectedRole}
                 />
               </motion.div>
             )}

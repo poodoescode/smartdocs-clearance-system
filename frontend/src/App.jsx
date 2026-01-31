@@ -11,6 +11,7 @@ import Loader from './components/ui/Loader';
 import LandingPage from './pages/LandingPage';
 import PixelTrail from './components/visuals/PixelTrail';
 import AuthPage from './pages/auth/AuthPage';
+import RoleSelectionPage from './pages/auth/RoleSelectionPage';
 import logo from './assets/logo.png';
 
 function App() {
@@ -26,6 +27,10 @@ function App() {
     const savedMode = sessionStorage.getItem('currentAppMode');
     if (savedMode) return savedMode;
     return sessionStorage.getItem('hasSeenLoader') ? 'landing' : 'loader';
+  });
+
+  const [selectedRole, setSelectedRole] = useState(() => {
+    return sessionStorage.getItem('selectedRole') || null;
   });
 
   // --- UI SEQUENCE EFFECT ---
@@ -57,8 +62,22 @@ function App() {
   }, [appMode]);
 
   const enterSystem = () => {
+    setAppMode('roleSelection');
+    sessionStorage.setItem('currentAppMode', 'roleSelection');
+  };
+
+  const handleRoleSelect = (role) => {
+    setSelectedRole(role);
+    sessionStorage.setItem('selectedRole', role);
     setAppMode('app');
     sessionStorage.setItem('currentAppMode', 'app');
+  };
+
+  const backToRoleSelection = () => {
+    setSelectedRole(null);
+    sessionStorage.removeItem('selectedRole');
+    setAppMode('roleSelection');
+    sessionStorage.setItem('currentAppMode', 'roleSelection');
   };
 
   // --- EXISTING AUTH EFFECTS & FUNCTIONS ---
@@ -68,13 +87,23 @@ function App() {
     
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
+      
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
         await fetchProfile(session.user.id, isMounted);
         await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', session.user.id);
       } else if (event === 'SIGNED_OUT') {
+        // Clear all state on sign out
         setUser(null);
         setProfile(null);
+        setSelectedRole(null);
+        sessionStorage.removeItem('selectedRole');
+        
+        // Redirect to role selection if not already there
+        if (appMode !== 'roleSelection' && appMode !== 'landing') {
+          setAppMode('roleSelection');
+          sessionStorage.setItem('currentAppMode', 'roleSelection');
+        }
       }
     });
 
@@ -138,10 +167,28 @@ function App() {
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
-    toast.success('Signed out');
+    try {
+      // Sign out from Supabase
+      await supabase.auth.signOut();
+      
+      // Clear all state
+      setUser(null);
+      setProfile(null);
+      setSelectedRole(null);
+      
+      // Clear session storage
+      sessionStorage.removeItem('selectedRole');
+      sessionStorage.removeItem('currentAppMode');
+      
+      // Redirect to role selection
+      setAppMode('roleSelection');
+      sessionStorage.setItem('currentAppMode', 'roleSelection');
+      
+      toast.success('Signed out successfully');
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Error signing out');
+    }
   };
 
   // --- MAIN RENDER ---
@@ -171,6 +218,26 @@ function App() {
           </motion.div>
         )}
 
+        {/* PHASE 2.5: ROLE SELECTION */}
+        {appMode === 'roleSelection' && (
+          <motion.div 
+            key="roleSelection" 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={`relative z-40 ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}
+          >
+            <RoleSelectionPage 
+              onRoleSelect={handleRoleSelect}
+              onBackToHome={() => {
+                setAppMode('landing');
+                sessionStorage.setItem('currentAppMode', 'landing');
+              }}
+              isDark={isDarkMode}
+            />
+          </motion.div>
+        )}
+
         {/* PHASE 3: MAIN APP (Auth or Dashboard) */}
         {appMode === 'app' && (
           <motion.div 
@@ -184,10 +251,8 @@ function App() {
               // --- AUTH SCREEN ---
               <AuthPage 
                 isDark={isDarkMode}
-                onBackToHome={() => {
-                  setAppMode('landing');
-                  sessionStorage.setItem('currentAppMode', 'landing');
-                }} 
+                selectedRole={selectedRole}
+                onBackToHome={backToRoleSelection} 
               />
             ) : (
               // --- DASHBOARD (ISU GLASSMORPHISM) ---
@@ -246,7 +311,12 @@ function App() {
                       </div>
 
                       {profile.role === 'student' ? (
-                        <StudentDashboard studentId={user.id} studentInfo={profile} />
+                        <StudentDashboard 
+                          studentId={user.id} 
+                          studentInfo={profile} 
+                          onSignOut={handleSignOut}
+                          onOpenSettings={() => setShowSettings(true)}
+                        />
                       ) : (
                         <SuperAdminDashboard adminId={user.id} />
                       )}

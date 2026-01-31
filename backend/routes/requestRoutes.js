@@ -8,6 +8,7 @@ const {
   notifyRequestRejected 
 } = require('../services/notificationService');
 const { generateCertificate } = require('../services/certificateService');
+const { classifyAndRouteRequest } = require('../services/aiRequestRouter');
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -48,31 +49,73 @@ async function logHistory(requestId, processedBy, previousStatus, newStatus, act
   });
 }
 
-// POST /api/requests/create - Create new clearance request
+// POST /api/requests/create - Create new clearance request with AI routing
 router.post('/create', async (req, res) => {
   try {
-    const { student_id, doc_type_id } = req.body;
+    const { student_id, doc_type_id, request_details } = req.body;
 
-    // Create new request with initial state
+    // ===== AI-POWERED REQUEST CLASSIFICATION & ROUTING =====
+    console.log('🤖 Initiating AI request classification...');
+    
+    const aiResult = await classifyAndRouteRequest({
+      doc_type_id,
+      student_id,
+      request_details
+    });
+
+    if (!aiResult.success) {
+      console.warn('⚠️ AI classification failed, using fallback routing');
+    } else {
+      console.log('✅ AI Classification Complete:', {
+        category: aiResult.classification.category,
+        urgency: aiResult.classification.urgency,
+        priorityScore: aiResult.classification.priorityScore,
+        assignedOffice: aiResult.routing.initialStage
+      });
+    }
+
+    // Create new request with AI-enhanced data
     const { data, error } = await supabase
       .from('requests')
       .insert({
         student_id,
         doc_type_id,
         current_status: 'pending',
-        current_stage_index: 0, // Start at first stage
-        is_completed: false
+        current_stage_index: 0,
+        is_completed: false,
+        // AI-enhanced fields
+        ai_classified: aiResult.success,
+        classification_data: aiResult.success ? aiResult.classification : null,
+        routing_data: aiResult.success ? aiResult.routing : null,
+        priority_score: aiResult.success ? aiResult.classification.priorityScore : 50,
+        urgency_level: aiResult.success ? aiResult.classification.urgency : 'medium',
+        estimated_completion_hours: aiResult.success ? aiResult.routing.estimatedProcessingTime : null,
+        auto_assigned: aiResult.success
       })
       .select()
       .single();
 
     if (error) throw error;
 
-    // Send notification
-    await notifyRequestSubmitted(data.id, student_id);
+    // Send notification with AI insights
+    await notifyRequestSubmitted(data.id, student_id, {
+      aiProcessed: aiResult.success,
+      urgency: data.urgency_level,
+      estimatedTime: data.estimated_completion_hours
+    });
 
-    res.json({ success: true, request: data });
+    res.json({ 
+      success: true, 
+      request: data,
+      aiInsights: aiResult.success ? {
+        category: aiResult.classification.category,
+        urgency: aiResult.classification.urgency,
+        estimatedTime: aiResult.routing.estimatedProcessingTime,
+        assignedOffice: aiResult.routing.initialStage
+      } : null
+    });
   } catch (error) {
+    console.error('❌ Request creation error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

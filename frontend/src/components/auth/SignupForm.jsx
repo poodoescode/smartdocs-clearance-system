@@ -98,7 +98,7 @@ const YEAR_LEVEL_OPTIONS = [
   { value: '6th Year', label: '6th Year' }
 ];
 
-export default function SignupForm({ onSwitchMode, isDark }) {
+export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -106,11 +106,12 @@ export default function SignupForm({ onSwitchMode, isDark }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [recaptchaToken, setRecaptchaToken] = useState(null);
+  const [adminSecretCode, setAdminSecretCode] = useState('');
   
   const [signUpData, setSignUpData] = useState({
     firstName: '',
     lastName: '',
-    role: 'student',
+    role: 'library_admin', // Default admin role
     studentNumber: '',
     course: '',
     yearLevel: ''
@@ -138,7 +139,8 @@ export default function SignupForm({ onSwitchMode, isDark }) {
         confirmPassword: 'Please confirm your password.',
         studentNumber: 'ID Number is required.',
         course: 'Course is required.',
-        yearLevel: 'Year Level is required.'
+        yearLevel: 'Year Level is required.',
+        adminSecretCode: 'Admin secret code is required.'
       };
       return labels[field];
     }
@@ -160,6 +162,10 @@ export default function SignupForm({ onSwitchMode, isDark }) {
       return 'Passwords do not match.';
     }
 
+    if (field === 'adminSecretCode' && selectedRole === 'admin' && value.length < 8) {
+      return 'Invalid secret code format.';
+    }
+
     return null;
   };
 
@@ -172,9 +178,16 @@ export default function SignupForm({ onSwitchMode, isDark }) {
       if (!confirmPassword) throw new Error('Please confirm password');
       if (password !== confirmPassword) throw new Error('Passwords do not match');
       if (password.length < 8) throw new Error('Password must be at least 8 chars');
-      const weakPasswordRegex = new RegExp(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/); // Using standard complex regex as baseline, though meter helps
+      const weakPasswordRegex = new RegExp(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/);
       if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) throw new Error('Password too weak');
       if (!recaptchaToken) throw new Error('Please verify reCAPTCHA');
+      
+      // Admin-specific validation
+      if (selectedRole === 'admin') {
+        if (!adminSecretCode || adminSecretCode.trim().length < 8) {
+          throw new Error('Valid admin secret code is required');
+        }
+      }
 
       const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/signup`, {
         method: 'POST',
@@ -185,6 +198,7 @@ export default function SignupForm({ onSwitchMode, isDark }) {
           firstName: signUpData.firstName.trim(),
           lastName: signUpData.lastName.trim(),
           role: signUpData.role,
+          adminSecretCode: selectedRole === 'admin' ? adminSecretCode : null,
           studentNumber: signUpData.role === 'student' ? signUpData.studentNumber : null,
           courseYear: signUpData.role === 'student' ? `${signUpData.course} - ${signUpData.yearLevel}` : null,
           recaptchaToken: recaptchaToken
@@ -194,13 +208,14 @@ export default function SignupForm({ onSwitchMode, isDark }) {
       const result = await response.json();
       if (!result.success) throw new Error(result.error || 'Signup failed');
 
-      toast.success('Account created! Sign in now.');
+      toast.success('Admin account created! Sign in now.');
       
       // Reset form
       setEmail('');
       setPassword('');
       setConfirmPassword('');
-      setSignUpData({ firstName: '', lastName: '', role: 'student', studentNumber: '', course: '', yearLevel: '' });
+      setAdminSecretCode('');
+      setSignUpData({ firstName: '', lastName: '', role: 'library_admin', studentNumber: '', course: '', yearLevel: '' });
       setRecaptchaToken(null);
       recaptchaRef.current?.reset();
       setTouched({});
@@ -302,7 +317,7 @@ export default function SignupForm({ onSwitchMode, isDark }) {
       </div>
 
       <div className="relative z-20">
-         <label className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Designation <span className="text-red-500">*</span></label>
+         <label className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Admin Role <span className="text-red-500">*</span></label>
          <SpotlightBorder isDark={isDark}>
            <CustomSelect
               label=""
@@ -310,13 +325,46 @@ export default function SignupForm({ onSwitchMode, isDark }) {
               onChange={(val) => setSignUpData({ ...signUpData, role: val })}
               isDark={isDark}
               options={[
-                { value: 'student', label: 'Student' }, 
                 { value: 'library_admin', label: 'Library Admin' },
                 { value: 'cashier_admin', label: 'Cashier Admin' },
                 { value: 'registrar_admin', label: 'Registrar Admin' }
               ]}
             />
          </SpotlightBorder>
+      </div>
+
+      {/* Admin Secret Code Field */}
+      <div>
+        <label className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+          Admin Secret Code <span className="text-red-500">*</span>
+        </label>
+        <SpotlightBorder isDark={isDark} error={getFieldError('adminSecretCode', adminSecretCode)}>
+          <input 
+            type="password" 
+            value={adminSecretCode} 
+            onChange={(e) => setAdminSecretCode(e.target.value)} 
+            onBlur={() => handleBlur('adminSecretCode')}
+            required 
+            placeholder="Enter admin secret code"
+            className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-green-500 placeholder:text-slate-600' : 'bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 placeholder:text-gray-400'} ${getFieldError('adminSecretCode', adminSecretCode) ? '!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900' : ''}`}
+          />
+        </SpotlightBorder>
+        <AnimatePresence>
+          {getFieldError('adminSecretCode', adminSecretCode) && (
+            <motion.p
+              initial={{ opacity: 0, y: -5, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: 'auto' }}
+              exit={{ opacity: 0, y: -5, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="text-red-500 text-xs mt-1 ml-1 font-bold"
+            >
+              {getFieldError('adminSecretCode', adminSecretCode)}
+            </motion.p>
+          )}
+        </AnimatePresence>
+        <p className={`text-xs mt-1.5 ml-1 ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
+          Contact your supervisor to obtain the admin secret code
+        </p>
       </div>
 
 {signUpData.role === 'student' && (

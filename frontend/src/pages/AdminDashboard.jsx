@@ -6,7 +6,17 @@ import Announcements from '../components/features/Announcements';
 import RequestHistory from '../components/features/RequestHistory';
 import DocumentUpload from '../components/features/DocumentUpload';
 import RequestComments from '../components/features/RequestComments';
-import logo from '../assets/logo.png';
+import Sidebar from '../components/layout/Sidebar';
+import Topbar from '../components/layout/Topbar';
+
+// Role Display Mapping
+const ROLE_DISPLAY_MAP = {
+  'library_admin': 'Library Admin',
+  'cashier_admin': 'Cashier Admin',
+  'registrar_admin': 'Registrar Admin',
+  'department_head': 'Department Head Admin',
+  'super_admin': 'Super Admin'
+};
 
 const THEME = {
   bg: 'bg-[#020617]',
@@ -82,10 +92,20 @@ const ActionButton = ({ onClick, variant = 'primary', children, icon, isLoading 
 export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
   const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [viewMode, setViewMode] = useState('queue'); 
   const [isLoading, setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  
+  // Sidebar & Navigation State
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activeView, setActiveView] = useState('dashboard');
+
+  // Admin Info for Topbar
+  const adminInfo = {
+    full_name: ROLE_DISPLAY_MAP[adminRole] || 'Admin',
+    role: adminRole,
+    student_number: null
+  };
 
   useEffect(() => {
     document.title = "SmartDocs | Admin Portal";
@@ -121,6 +141,7 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
         setRequests(prev => prev.filter(r => r.id !== id));
         setSelectedRequest(null);
         setRejectReason('');
+        loadData(); // Refresh data
       } else {
         throw new Error(res.error || 'Operation failed');
       }
@@ -130,6 +151,65 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
       setActionLoading(false);
     }
   };
+
+  // Sidebar Menu Items
+  const menuItems = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+      )
+    },
+    {
+      id: 'queue',
+      label: 'Request Queue',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+      ),
+      badge: requests.length || null
+    },
+    {
+      id: 'history',
+      label: 'Request History',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    },
+    {
+      id: 'announcements',
+      label: 'Announcements',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+        </svg>
+      )
+    },
+    {
+      id: 'reports',
+      label: 'Reports / Metrics',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      )
+    },
+    {
+      id: 'users',
+      label: 'User Management',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      )
+    }
+  ];
 
   const renderQueueItem = (req, idx) => (
     <motion.div
@@ -143,7 +223,7 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-5">
           <div className={`w-14 h-14 rounded-2xl ${THEME.accent} flex items-center justify-center text-xl font-bold text-white shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform`}>
-            {req.profiles.first_name?.[0]}
+            {req.profiles.full_name?.charAt(0) || 'U'}
           </div>
           <div>
             <h3 className="text-lg font-bold text-white leading-tight group-hover:text-indigo-300 transition-colors">
@@ -162,7 +242,7 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
         
         <div className="flex items-center gap-6">
           <div className="text-right hidden sm:block">
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-0.5">Payment Type</div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-0.5">Document Type</div>
             <div className="text-sm font-medium text-white">{req.document_types.name}</div>
           </div>
           <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-white/40 group-hover:bg-white group-hover:text-black transition-all">
@@ -174,207 +254,235 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
   );
 
   return (
-    <div className={`min-h-screen ${THEME.bg} text-slate-200 font-sans selection:bg-indigo-500/30 overflow-hidden`}>
-      
+    <div className={`min-h-screen ${THEME.bg}`}>
+      {/* Background Effects */}
       <div className="fixed inset-0 z-0">
         <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-indigo-600/20 rounded-full blur-[120px] animate-pulse" />
         <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-violet-600/10 rounded-full blur-[120px]" />
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.02]" />
       </div>
 
-      <div className="relative z-10 max-w-[1800px] mx-auto p-6 lg:p-10 h-screen flex flex-col">
-        
-        <header className="flex items-center justify-between mb-10">
-          <div className="flex items-center gap-6">
-            <img src={logo} alt="SmartDocs Logo" className="w-16 h-16 object-contain drop-shadow-2xl" />
-            <div>
-              <h1 className="text-4xl font-display font-medium text-white tracking-tight">
-                Cashier<span className="text-white/30">Console</span>
-              </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="text-xs font-bold text-emerald-500 uppercase tracking-widest">System Online</span>
-              </div>
-            </div>
-          </div>
+      {/* Sidebar */}
+      <Sidebar
+        menuItems={menuItems}
+        activeView={activeView}
+        onViewChange={setActiveView}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        theme="dark"
+      />
 
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md">
-              <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-              <span className="text-sm font-medium text-slate-300">{requests.length} Active Requests</span>
-            </div>
-            <button onClick={onSignOut} className="h-12 w-12 rounded-full bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 flex items-center justify-center transition-all duration-300">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-            </button>
-          </div>
-        </header>
+      {/* Topbar */}
+      <Topbar
+        user={adminInfo}
+        onSignOut={onSignOut}
+        onOpenSettings={() => {}}
+        theme="dark"
+        sidebarCollapsed={sidebarCollapsed}
+      />
 
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 min-h-0">
-          
-          <div className="lg:col-span-8 flex flex-col gap-8 min-h-0">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
-              <MetricPill 
-                label="Total Revenue" 
-                value="₱24,500" 
-                trend="+12%" 
-                icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-              />
-              <MetricPill 
-                label="Pending Payments" 
-                value={requests.length} 
-                icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-              />
-              <MetricPill 
-                label="Processed Today" 
-                value="142" 
-                icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-              />
-            </div>
-
-            <GlassCard className="flex-1 flex flex-col min-h-0">
-              <div className="flex items-center gap-6 p-6 border-b border-white/5">
-                <button 
-                  onClick={() => setViewMode('queue')}
-                  className={`text-sm font-bold uppercase tracking-widest transition-colors ${viewMode === 'queue' ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                  Transaction Queue
-                </button>
-                <button 
-                  onClick={() => setViewMode('history')}
-                  className={`text-sm font-bold uppercase tracking-widest transition-colors ${viewMode === 'history' ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                  History Log
-                </button>
+      {/* Main Content */}
+      <main
+        className="pt-20 transition-all duration-300 relative z-10"
+        style={{ marginLeft: sidebarCollapsed ? '80px' : '280px' }}
+      >
+        <div className="p-8">
+          {/* Dashboard View */}
+          {activeView === 'dashboard' && (
+            <div className="space-y-8">
+              <div>
+                <h2 className="text-3xl font-bold text-white mb-2">Metrics Overview</h2>
+                <p className="text-slate-400">Welcome to your admin dashboard</p>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                <AnimatePresence mode="wait">
-                  {viewMode === 'queue' ? (
-                    requests.length === 0 ? (
-                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col items-center justify-center text-slate-500">
-                         <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-4">
-                            <svg className="w-8 h-8 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                         </div>
-                         <p>All payments processed</p>
-                      </motion.div>
-                    ) : (
-                      requests.map((req, i) => renderQueueItem(req, i))
-                    )
-                  ) : (
-                    <RequestHistory isAdmin={true} />
-                  )}
-                </AnimatePresence>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <MetricPill 
+                  label="Total Revenue" 
+                  value="₱24,500" 
+                  trend="+12%" 
+                  icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                />
+                <MetricPill 
+                  label="Pending Requests" 
+                  value={requests.length} 
+                  icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                />
+                <MetricPill 
+                  label="Processed Today" 
+                  value="142" 
+                  icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                />
               </div>
-            </GlassCard>
-          </div>
 
-          <div className="lg:col-span-4 flex flex-col gap-8 min-h-0">
-            <GlassCard className="flex-1 flex flex-col relative">
-               {!selectedRequest ? (
-                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
-                    <div className="w-32 h-32 rounded-full bg-gradient-to-tr from-white/5 to-transparent border border-white/5 flex items-center justify-center mb-6 animate-float">
-                       <svg className="w-12 h-12 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+              <GlassCard className="p-6">
+                <h3 className="text-xl font-bold text-white mb-4">Recent Activity</h3>
+                <div className="space-y-4">
+                  {requests.slice(0, 5).map((req, idx) => (
+                    <div key={req.id} className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.02] border border-white/[0.05]">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold">
+                          {req.profiles.full_name?.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="text-white font-semibold">{req.profiles.full_name}</p>
+                          <p className="text-xs text-slate-400">{req.document_types.name}</p>
+                        </div>
+                      </div>
+                      <span className="text-xs text-slate-500">{new Date(req.created_at).toLocaleDateString()}</span>
                     </div>
-                    <h3 className="text-xl font-display font-medium text-white mb-2">Transaction Details</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">Select a pending request from the queue to view documents, process payments, and approve clearance.</p>
-                 </div>
-               ) : (
-                 <motion.div 
-                   key={selectedRequest.id}
-                   initial={{ opacity: 0, scale: 0.95 }}
-                   animate={{ opacity: 1, scale: 1 }}
-                   className="flex flex-col h-full"
-                 >
-                    <div className="p-8 border-b border-white/5 bg-gradient-to-b from-indigo-500/10 to-transparent">
-                       <div className="flex justify-between items-start mb-6">
+                  ))}
+                </div>
+              </GlassCard>
+            </div>
+          )}
+
+          {/* Request Queue View */}
+          {activeView === 'queue' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="lg:col-span-7">
+                <h2 className="text-2xl font-bold text-white mb-6">Request Queue</h2>
+                {requests.length === 0 ? (
+                  <GlassCard className="p-12 text-center">
+                    <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    </div>
+                    <p className="text-slate-400">All requests processed</p>
+                  </GlassCard>
+                ) : (
+                  <div className="space-y-4">
+                    {requests.map((req, i) => renderQueueItem(req, i))}
+                  </div>
+                )}
+              </div>
+
+              <div className="lg:col-span-5">
+                <GlassCard className="sticky top-24">
+                  {!selectedRequest ? (
+                    <div className="p-12 text-center">
+                      <div className="w-32 h-32 rounded-full bg-gradient-to-tr from-white/5 to-transparent border border-white/5 flex items-center justify-center mx-auto mb-6">
+                        <svg className="w-12 h-12 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                      </div>
+                      <h3 className="text-xl font-bold text-white mb-2">Request Details</h3>
+                      <p className="text-slate-400 text-sm">Select a request to view details and take action</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col h-full">
+                      <div className="p-6 border-b border-white/5 bg-gradient-to-b from-indigo-500/10 to-transparent">
+                        <div className="flex justify-between items-start mb-4">
                           <div>
-                             <h2 className="text-2xl font-display font-bold text-white">{selectedRequest.profiles.full_name}</h2>
-                             <p className="text-indigo-300 font-medium">{selectedRequest.profiles.student_number}</p>
+                            <h2 className="text-xl font-bold text-white">{selectedRequest.profiles.full_name}</h2>
+                            <p className="text-indigo-300 text-sm">{selectedRequest.profiles.student_number}</p>
                           </div>
                           <button onClick={() => setSelectedRequest(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                             <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                           </button>
-                       </div>
-                       
-                       <div className="grid grid-cols-2 gap-4">
-                          <div className="p-4 rounded-2xl bg-black/20 border border-white/5">
-                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Document</p>
-                             <p className="text-sm font-medium text-white">{selectedRequest.document_types.name}</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 rounded-xl bg-black/20 border border-white/5">
+                            <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Document</p>
+                            <p className="text-xs font-medium text-white">{selectedRequest.document_types.name}</p>
                           </div>
-                          <div className="p-4 rounded-2xl bg-black/20 border border-white/5">
-                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Amount Due</p>
-                             <p className="text-sm font-bold text-emerald-400">₱150.00</p>
+                          <div className="p-3 rounded-xl bg-black/20 border border-white/5">
+                            <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Amount</p>
+                            <p className="text-xs font-bold text-emerald-400">₱150.00</p>
                           </div>
-                       </div>
-                    </div>
+                        </div>
+                      </div>
 
-                    <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
-                       <div>
-                          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                             <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Proof of Payment
-                          </h4>
+                      <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-500 uppercase mb-3">Documents</h4>
                           <DocumentUpload requestId={selectedRequest.id} userId={adminId} isAdmin={true} />
-                       </div>
-                       
-                       <div>
-                          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                             <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Communication
-                          </h4>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-500 uppercase mb-3">Comments</h4>
                           <RequestComments requestId={selectedRequest.id} userId={adminId} />
-                       </div>
-                    </div>
+                        </div>
+                      </div>
 
-                    <div className="p-6 border-t border-white/5 bg-black/20 backdrop-blur-xl">
-                       <div className="space-y-4">
+                      <div className="p-6 border-t border-white/5 bg-black/20">
+                        <div className="space-y-3">
                           <ActionButton 
-                             variant="primary" 
-                             onClick={() => processAction('approve', selectedRequest.id)} 
-                             isLoading={actionLoading}
-                             icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                            variant="primary" 
+                            onClick={() => processAction('approve', selectedRequest.id)} 
+                            isLoading={actionLoading}
+                            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
                           >
-                             Confirm Payment & Approve
+                            Approve Request
                           </ActionButton>
 
                           <div className="flex gap-2">
-                             <div className="flex-1 relative">
-                                <input 
-                                   type="text" 
-                                   placeholder="Rejection Reason..." 
-                                   className="w-full h-12 px-4 rounded-full bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-red-500/50 transition-colors"
-                                   value={rejectReason}
-                                   onChange={(e) => setRejectReason(e.target.value)}
-                                />
-                             </div>
-                             <ActionButton 
-                                variant="danger" 
-                                onClick={() => processAction('reject', selectedRequest.id)}
-                                isLoading={actionLoading}
-                             >
-                                Reject
-                             </ActionButton>
+                            <input 
+                              type="text" 
+                              placeholder="Rejection reason..." 
+                              className="flex-1 h-12 px-4 rounded-full bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-red-500/50"
+                              value={rejectReason}
+                              onChange={(e) => setRejectReason(e.target.value)}
+                            />
+                            <ActionButton 
+                              variant="danger" 
+                              onClick={() => processAction('reject', selectedRequest.id)}
+                              isLoading={actionLoading}
+                            >
+                              Reject
+                            </ActionButton>
                           </div>
-                       </div>
+                        </div>
+                      </div>
                     </div>
-                 </motion.div>
-               )}
-            </GlassCard>
+                  )}
+                </GlassCard>
+              </div>
+            </div>
+          )}
 
-            <GlassCard className="h-[250px] p-6 flex flex-col">
-               <div className="flex items-center gap-2 mb-4">
-                  <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse"></span>
-                  <h3 className="font-bold text-sm text-white uppercase tracking-widest">Live Updates</h3>
-               </div>
-               <div className="flex-1 overflow-y-auto custom-scrollbar">
-                  <Announcements userRole={adminRole} />
-               </div>
-            </GlassCard>
-          </div>
+          {/* Request History View */}
+          {activeView === 'history' && (
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-6">Request History</h2>
+              <RequestHistory isAdmin={true} />
+            </div>
+          )}
 
+          {/* Announcements View */}
+          {activeView === 'announcements' && (
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-6">Announcements</h2>
+              <Announcements userRole={adminRole} />
+            </div>
+          )}
+
+          {/* Reports View */}
+          {activeView === 'reports' && (
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-6">Reports & Metrics</h2>
+              <GlassCard className="p-8 text-center">
+                <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-10 h-10 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">Reports Coming Soon</h3>
+                <p className="text-slate-400">Detailed analytics and reports will be available here</p>
+              </GlassCard>
+            </div>
+          )}
+
+          {/* User Management View */}
+          {activeView === 'users' && (
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-6">User Management</h2>
+              <GlassCard className="p-8 text-center">
+                <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-10 h-10 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">User Management Coming Soon</h3>
+                <p className="text-slate-400">Create and manage student accounts here</p>
+              </GlassCard>
+            </div>
+          )}
         </div>
-      </div>
+      </main>
     </div>
   );
 }
