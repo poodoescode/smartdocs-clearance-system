@@ -34,10 +34,10 @@ export default function Sidebar({ menuItems, activeView, onViewChange, isCollaps
               </div>
               <div>
                 <h2 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  SmartDocs
+                  Smart Clearance
                 </h2>
                 <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                  Portal
+                  System
                 </p>
               </div>
             </motion.div>
@@ -129,7 +129,7 @@ export default function Sidebar({ menuItems, activeView, onViewChange, isCollaps
                 </span>
               </div>
               <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
-                SmartDocs v2.0
+                Smart Clearance v2.0
               </p>
             </motion.div>
           )}

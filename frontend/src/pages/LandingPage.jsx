@@ -24,7 +24,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
     privacy: (
       <div className="space-y-4 text-sm leading-relaxed">
         <p><strong>Effective Date:</strong> January 2026</p>
-        <p>At SmartDocs (Isabela State University - Echague Campus), we value your privacy and are committed to protecting your personal data. This Privacy Policy explains how we collect, use, and safeguard your information when you use our digital clearance system.</p>
+        <p>At Smart Clearance System (Isabela State University - Echague Campus), we value your privacy and are committed to protecting your personal data. This Privacy Policy explains how we collect, use, and safeguard your information when you use our digital clearance system.</p>
         
         <h4 className="font-bold text-lg mt-4">1. Information We Collect</h4>
         <ul className="list-disc pl-5 space-y-1">
@@ -48,10 +48,10 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
     terms: (
       <div className="space-y-4 text-sm leading-relaxed">
         <p><strong>Last Updated:</strong> January 2026</p>
-        <p>Welcome to SmartDocs. By accessing the system, you agree to these Terms of Use. Please read them carefully.</p>
+        <p>Welcome to Smart Clearance System. By accessing the system, you agree to these Terms of Use. Please read them carefully.</p>
         
         <h4 className="font-bold text-lg mt-4">1. Authorized Use</h4>
-        <p>SmartDocs is strictly for the use of actively enrolled students, faculty, and staff of Isabela State University - Echague Campus. Unauthorized access is prohibited.</p>
+        <p>Smart Clearance System is strictly for the use of actively enrolled students, faculty, and staff of Isabela State University - Echague Campus. Unauthorized access is prohibited.</p>
 
         <h4 className="font-bold text-lg mt-4">2. User Responsibilities</h4>
         <ul className="list-disc pl-5 space-y-1">
@@ -75,7 +75,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
   }, []);
 
   useEffect(() => {
-    document.title = "SmartDocs | Homepage";
+    document.title = "Smart Clearance System | Homepage";
   }, []);
 
   const fadeInUp = {
@@ -118,9 +118,9 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
             }} 
             className="flex items-center gap-3 cursor-pointer"
           >
-            <img src={logo} alt="SmartDocs Logo" className="h-10 w-10 object-contain drop-shadow-md" />
+            <img src={logo} alt="Smart Clearance System Logo" className="h-10 w-10 object-contain drop-shadow-md" />
             <div>
-              <h1 className={`text-xl font-bold leading-none tracking-tight font-display ${isDark ? 'text-white' : 'text-slate-900'}`}>SMART<span className="text-primary-600">DOCS</span></h1>
+              <h1 className={`text-xl font-bold leading-none tracking-tight font-display ${isDark ? 'text-white' : 'text-slate-900'}`}>SMART<span className="text-primary-600">CLEARANCE</span></h1>
               <p className="text-[10px] tracking-widest text-slate-500 uppercase font-bold">ISU Echague Campus</p>
             </div>
           </div>
@@ -268,7 +268,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
             className="text-center mb-16"
           >
             <h2 className={`text-3xl md:text-5xl font-bold font-display mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              Why Choose <span className="text-primary-600">SmartDocs</span>?
+              Why Choose <span className="text-primary-600">Smart Clearance System</span>?
             </h2>
             <p className={`text-lg max-w-2xl mx-auto ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
               Streamline your clearance process with our advanced digital solution designed for the modern academic environment.
@@ -412,7 +412,7 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
               
               <p className={`text-lg mb-10 leading-relaxed border-l-4 pl-6 ${isDark ? 'text-slate-400 border-slate-800' : 'text-slate-600 border-primary-100'}`}>
                 <span className={`block font-bold mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>Our Vision</span>
-                SmartDocs represents our pledge to a "Smart Green University" — reducing carbon footprints while increasing operational efficiency for thousands of students.
+                Smart Clearance System represents our pledge to a "Smart Green University" — reducing carbon footprints while increasing operational efficiency for thousands of students.
               </p>
               
               <div className="flex flex-wrap gap-4">
@@ -455,8 +455,8 @@ const LandingPage = ({ onEnter, isDark, toggleTheme }) => {
           <div className="grid md:grid-cols-4 gap-12 mb-12">
             <div className="col-span-2">
               <div className="flex items-center gap-2 mb-6">
-                 <img src={logo} alt="SmartDocs Logo" className="h-8 w-8 object-contain" />
-                 <span className={`text-xl font-bold font-display ${isDark ? 'text-white' : 'text-slate-800'}`}>SMART<span className="text-primary-600">DOCS</span></span>
+                 <img src={logo} alt="Smart Clearance System Logo" className="h-8 w-8 object-contain" />
+                 <span className={`text-xl font-bold font-display ${isDark ? 'text-white' : 'text-slate-800'}`}>SMART<span className="text-primary-600">CLEARANCE</span></span>
               </div>
               <p className="text-slate-500 text-sm leading-relaxed max-w-sm mb-6">
                 The official digital clearance system of Isabela State University - Echague Campus. 

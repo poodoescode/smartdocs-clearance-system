@@ -168,26 +168,28 @@ function App() {
 
   const handleSignOut = async () => {
     try {
-      // Sign out from Supabase
-      await supabase.auth.signOut();
-      
-      // Clear all state
+      // Clear all state first
       setUser(null);
       setProfile(null);
       setSelectedRole(null);
       
-      // Clear session storage
-      sessionStorage.removeItem('selectedRole');
-      sessionStorage.removeItem('currentAppMode');
+      // Clear ALL storage
+      sessionStorage.clear();
+      localStorage.clear();
       
-      // Redirect to role selection
-      setAppMode('roleSelection');
-      sessionStorage.setItem('currentAppMode', 'roleSelection');
+      // Sign out from Supabase (this clears auth tokens)
+      await supabase.auth.signOut({ scope: 'global' });
       
       toast.success('Signed out successfully');
+      
+      // Force immediate reload to clear all cached state
+      window.location.href = '/';
     } catch (error) {
       console.error('Logout error:', error);
-      toast.error('Error signing out');
+      // Even if signout fails, clear everything and reload
+      sessionStorage.clear();
+      localStorage.clear();
+      window.location.href = '/';
     }
   };
 
@@ -261,66 +263,68 @@ function App() {
                    // --- STANDALONE ADMIN DASHBOARD ---
                    <AdminDashboard adminId={user.id} adminRole={profile.role} onSignOut={handleSignOut} />
                 ) : (
-                  // --- STANDARD LAYOUT (Green/Nature Theme) ---
+                  // --- STUDENT DASHBOARD (Full Screen) ---
                   <>
-                     <div className="absolute inset-0 z-0 opacity-50 pointer-events-none">
-                        <PixelTrail 
-                          gridSize={60} 
-                          trailSize={0.2} 
-                          maxAge={300} 
-                          interpolate={8} 
-                          color="#22c55e" 
-                          glProps={{ antialias: false, powerPreference: 'high-performance', alpha: true }}
-                        />
-                     </div>
-                    <header className="glass-panel sticky top-0 z-50 border-b border-white/10">
-                      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex justify-between items-center h-20">
-                          <div className="flex items-center gap-4">
-                            <img src={logo} alt="SmartDocs Logo" className="w-12 h-12 object-contain" />
-                            <div>
-                              <h1 className="font-display text-xl font-bold text-white tracking-wider">SMARTDOCS</h1>
-                              <div className="flex items-center gap-2">
-                                <span className="h-1.5 w-1.5 rounded-full bg-secondary-500 animate-pulse"></span>
-                                <p className="text-[10px] text-primary-400/80 tracking-widest uppercase">System Online</p>
+                    {profile.role === 'student' ? (
+                      <StudentDashboard 
+                        studentId={user.id} 
+                        studentInfo={profile} 
+                        onSignOut={handleSignOut}
+                        onOpenSettings={() => setShowSettings(true)}
+                      />
+                    ) : (
+                      // --- SUPER ADMIN LAYOUT (Green/Nature Theme) ---
+                      <>
+                         <div className="absolute inset-0 z-0 opacity-50 pointer-events-none">
+                            <PixelTrail 
+                              gridSize={60} 
+                              trailSize={0.2} 
+                              maxAge={300} 
+                              interpolate={8} 
+                              color="#22c55e" 
+                              glProps={{ antialias: false, powerPreference: 'high-performance', alpha: true }}
+                            />
+                         </div>
+                        <header className="glass-panel sticky top-0 z-50 border-b border-white/10">
+                          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex justify-between items-center h-20">
+                              <div className="flex items-center gap-4">
+                                <img src={logo} alt="Smart Clearance System Logo" className="w-12 h-12 object-contain" />
+                                <div>
+                                  <h1 className="font-display text-xl font-bold text-white tracking-wider">SMART<span className="text-primary-400">CLEARANCE</span></h1>
+                                  <div className="flex items-center gap-2">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-secondary-500 animate-pulse"></span>
+                                    <p className="text-[10px] text-primary-400/80 tracking-widest uppercase">System Online</p>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-6">
+                                <button onClick={() => setShowSettings(true)} className="text-gray-400 hover:text-primary-400 transition-colors">
+                                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                </button>
+                                
+                                <div className="text-right hidden sm:block border-l border-white/10 pl-6">
+                                  <p className="text-sm font-bold text-white tracking-wide">{profile.full_name}</p>
+                                  <p className="text-[10px] text-primary-400 uppercase tracking-widest">{profile.role.replace('_', ' ')}</p>
+                                </div>
+                                
+                                <button onClick={handleSignOut} className="rounded-none border border-red-500/50 bg-red-500/10 px-4 py-2 text-xs font-bold text-red-400 hover:bg-red-500 hover:text-white transition-all">
+                                  LOGOUT
+                                </button>
                               </div>
                             </div>
                           </div>
-                          
-                          <div className="flex items-center gap-6">
-                            <button onClick={() => setShowSettings(true)} className="text-gray-400 hover:text-primary-400 transition-colors">
-                               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                            </button>
-                            
-                            <div className="text-right hidden sm:block border-l border-white/10 pl-6">
-                              <p className="text-sm font-bold text-white tracking-wide">{profile.full_name}</p>
-                              <p className="text-[10px] text-primary-400 uppercase tracking-widest">{profile.role.replace('_', ' ')}</p>
-                            </div>
-                            
-                            <button onClick={handleSignOut} className="rounded-none border border-red-500/50 bg-red-500/10 px-4 py-2 text-xs font-bold text-red-400 hover:bg-red-500 hover:text-white transition-all">
-                              LOGOUT
-                            </button>
+                        </header>
+
+                        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+                          <div className="mb-8 glass-card rounded-xl p-6 border-l-4 border-l-secondary-500">
+                            <EnvironmentalImpact studentId={null} />
                           </div>
-                        </div>
-                      </div>
-                    </header>
-
-                    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
-                      <div className="mb-8 glass-card rounded-xl p-6 border-l-4 border-l-secondary-500">
-                        <EnvironmentalImpact studentId={profile.role === 'student' ? user.id : null} />
-                      </div>
-
-                      {profile.role === 'student' ? (
-                        <StudentDashboard 
-                          studentId={user.id} 
-                          studentInfo={profile} 
-                          onSignOut={handleSignOut}
-                          onOpenSettings={() => setShowSettings(true)}
-                        />
-                      ) : (
-                        <SuperAdminDashboard adminId={user.id} />
-                      )}
-                    </main>
+                          <SuperAdminDashboard adminId={user.id} />
+                        </main>
+                      </>
+                    )}
                   </>
                 )}
               </div>

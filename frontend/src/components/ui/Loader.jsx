@@ -121,7 +121,7 @@ const Loader = () => {
           >
             <h1 className="text-4xl font-bold font-display tracking-tight">
               <span className="text-white drop-shadow-md">Smart</span>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-primary-200 drop-shadow-[0_0_15px_rgba(34,197,94,0.5)]">Docs</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-primary-200 drop-shadow-[0_0_15px_rgba(34,197,94,0.5)]">Clearance</span>
             </h1>
             
             <motion.div

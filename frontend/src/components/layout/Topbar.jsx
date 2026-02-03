@@ -37,12 +37,16 @@ export default function Topbar({ user, onSignOut, onOpenSettings, theme = 'light
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      className={`fixed top-0 left-0 right-0 h-20 z-30 ${
+      className={`fixed top-0 h-20 z-30 transition-all duration-300 ${
         isDark 
           ? 'bg-slate-900/95 border-b border-white/10' 
           : 'bg-white/95 border-b border-gray-200'
       } backdrop-blur-xl shadow-lg`}
-      style={{ width: '100%' }}
+      style={{ 
+        left: sidebarCollapsed ? '80px' : '280px',
+        right: 0,
+        width: `calc(100% - ${sidebarCollapsed ? '80px' : '280px'})`
+      }}
     >
       <div className="h-full px-6 flex items-center justify-between">
         {/* Page Title / Breadcrumb */}

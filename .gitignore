@@ -141,3 +141,41 @@ coverage/
 # Sensitive documentation (if any)
 PRIVATE_NOTES.md
 CREDENTIALS.md
+
+# ============================================
+# DOCUMENTATION & ACADEMIC FILES (DO NOT COMMIT)
+# ============================================
+# Exclude ALL markdown files in root directory except README.md
+/*.md
+!README.md
+
+# Exclude ALL SQL files in root directory
+/*.sql
+
+# Thesis and research documents
+/docs/
+/documentation/
+/thesis/
+/research/
+/chapters/
+
+# Document files
+*.pdf
+*.docx
+*.doc
+*.pptx
+*.ppt
+*.xlsx
+*.xls
+
+# Screenshots and mockups
+/screenshots/
+/mockups/
+/designs/
+*.png.bak
+*.jpg.bak
+
+# Personal notes
+NOTES.md
+TODO.md
+CHANGELOG.md

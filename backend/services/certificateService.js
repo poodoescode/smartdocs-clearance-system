@@ -99,12 +99,12 @@ async function generateCertificate(requestId) {
     doc.fontSize(28)
        .fillColor('#28a745')
        .font('Helvetica-Bold')
-       .text('SmartDocs', 0, 80, { align: 'center' });
+       .text('SMART CLEARANCE SYSTEM', 0, 80, { align: 'center' });
 
     doc.fontSize(14)
        .fillColor('#666')
        .font('Helvetica')
-       .text('Digital Document Request & Clearance System', 0, 115, { align: 'center' });
+       .text('Isabela State University', 0, 115, { align: 'center' });
 
     // Certificate Title
     doc.moveDown(2);
@@ -197,7 +197,7 @@ async function generateCertificate(requestId) {
        });
 
     doc.fontSize(8)
-       .text('For verification, visit smartdocs.edu/verify or scan the QR code above.', 0, doc.page.height - 80, {
+       .text('For verification, visit smartclearance.edu/verify or scan the QR code above.', 0, doc.page.height - 80, {
          align: 'center'
        });
 

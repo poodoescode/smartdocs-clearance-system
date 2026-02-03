@@ -108,7 +108,7 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
   };
 
   useEffect(() => {
-    document.title = "SmartDocs | Admin Portal";
+    document.title = "Smart Clearance System | Admin Portal";
     loadData();
   }, [adminRole]);
 
@@ -165,7 +165,7 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
     },
     {
       id: 'queue',
-      label: 'Request Queue',
+      label: 'Clearance Queue',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -175,7 +175,7 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
     },
     {
       id: 'history',
-      label: 'Request History',
+      label: 'Clearance History',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -340,13 +340,13 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
           {activeView === 'queue' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               <div className="lg:col-span-7">
-                <h2 className="text-2xl font-bold text-white mb-6">Request Queue</h2>
+                <h2 className="text-2xl font-bold text-white mb-6">Clearance Queue</h2>
                 {requests.length === 0 ? (
                   <GlassCard className="p-12 text-center">
                     <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
                       <svg className="w-8 h-8 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                     </div>
-                    <p className="text-slate-400">All requests processed</p>
+                    <p className="text-slate-400">All clearances processed</p>
                   </GlassCard>
                 ) : (
                   <div className="space-y-4">
@@ -362,8 +362,8 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
                       <div className="w-32 h-32 rounded-full bg-gradient-to-tr from-white/5 to-transparent border border-white/5 flex items-center justify-center mx-auto mb-6">
                         <svg className="w-12 h-12 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                       </div>
-                      <h3 className="text-xl font-bold text-white mb-2">Request Details</h3>
-                      <p className="text-slate-400 text-sm">Select a request to view details and take action</p>
+                      <h3 className="text-xl font-bold text-white mb-2">Clearance Details</h3>
+                      <p className="text-slate-400 text-sm">Select a clearance to view details and take action</p>
                     </div>
                   ) : (
                     <div className="flex flex-col h-full">
@@ -380,7 +380,7 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
                         
                         <div className="grid grid-cols-2 gap-3">
                           <div className="p-3 rounded-xl bg-black/20 border border-white/5">
-                            <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Document</p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Clearance</p>
                             <p className="text-xs font-medium text-white">{selectedRequest.document_types.name}</p>
                           </div>
                           <div className="p-3 rounded-xl bg-black/20 border border-white/5">
