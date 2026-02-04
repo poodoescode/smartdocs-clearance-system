@@ -138,10 +138,10 @@ const ClickSpark = ({
         width: '100%',
         height: '100%'
       }}
-      onClick={handleClick}
     >
       <canvas
         ref={canvasRef}
+        onClick={handleClick}
         style={{
           width: '100%',
           height: '100%',
@@ -150,10 +150,13 @@ const ClickSpark = ({
           position: 'absolute',
           top: 0,
           left: 0,
-          pointerEvents: 'none'
+          pointerEvents: 'auto',
+          zIndex: 9999
         }}
       />
-      {children}
+      <div style={{ position: 'relative', zIndex: 10000 }}>
+        {children}
+      </div>
     </div>
   );
 };
