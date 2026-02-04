@@ -11,6 +11,7 @@ const ClickSpark = ({
   children
 }) => {
   const canvasRef = useRef(null);
+  const containerRef = useRef(null);
   const sparksRef = useRef([]);
   const startTimeRef = useRef(null);
 
@@ -112,27 +113,50 @@ const ClickSpark = ({
     };
   }, [sparkColor, sparkSize, sparkRadius, sparkCount, duration, easeFunc, extraScale]);
 
-  const handleClick = e => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // Global click handler
+  useEffect(() => {
+    const handleClick = e => {
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      if (!canvas || !container) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+      // Check if click is within our container
+      const containerRect = container.getBoundingClientRect();
+      if (
+        e.clientX < containerRect.left ||
+        e.clientX > containerRect.right ||
+        e.clientY < containerRect.top ||
+        e.clientY > containerRect.bottom
+      ) {
+        return;
+      }
 
-    const now = performance.now();
-    const newSparks = Array.from({ length: sparkCount }, (_, i) => ({
-      x,
-      y,
-      angle: (2 * Math.PI * i) / sparkCount,
-      startTime: now
-    }));
+      const canvasRect = canvas.getBoundingClientRect();
+      const x = e.clientX - canvasRect.left;
+      const y = e.clientY - canvasRect.top;
 
-    sparksRef.current.push(...newSparks);
-  };
+      const now = performance.now();
+      const newSparks = Array.from({ length: sparkCount }, (_, i) => ({
+        x,
+        y,
+        angle: (2 * Math.PI * i) / sparkCount,
+        startTime: now
+      }));
+
+      sparksRef.current.push(...newSparks);
+    };
+
+    // Add listener to document to catch all clicks
+    document.addEventListener('click', handleClick, true);
+
+    return () => {
+      document.removeEventListener('click', handleClick, true);
+    };
+  }, [sparkCount]);
 
   return (
     <div
+      ref={containerRef}
       style={{
         position: 'relative',
         width: '100%',
@@ -141,7 +165,6 @@ const ClickSpark = ({
     >
       <canvas
         ref={canvasRef}
-        onClick={handleClick}
         style={{
           width: '100%',
           height: '100%',
@@ -150,11 +173,11 @@ const ClickSpark = ({
           position: 'absolute',
           top: 0,
           left: 0,
-          pointerEvents: 'auto',
+          pointerEvents: 'none',
           zIndex: 9999
         }}
       />
-      <div style={{ position: 'relative', zIndex: 10000 }}>
+      <div style={{ position: 'relative', width: '100%', height: '100%' }}>
         {children}
       </div>
     </div>
