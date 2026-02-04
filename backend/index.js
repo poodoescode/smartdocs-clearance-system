@@ -31,6 +31,7 @@ const documentRoutes = require('./routes/documentRoutes');
 const commentRoutes = require('./routes/commentRoutes');
 const certificateRoutes = require('./routes/certificateRoutes');
 const escalationRoutes = require('./routes/escalationRoutes');
+const graduationRoutes = require('./routes/graduationRoutes'); // NEW: Graduation clearance routes
 
 // Use routes
 app.use('/api/requests', requestRoutes);
@@ -39,6 +40,7 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/certificates', certificateRoutes);
 app.use('/api/escalation', escalationRoutes);
+app.use('/api/graduation', graduationRoutes); // NEW: Graduation clearance endpoints
 
 app.get('/', (req, res) => {
     res.send('SmartDocs backend running with production features!');

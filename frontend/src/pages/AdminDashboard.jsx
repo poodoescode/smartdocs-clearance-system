@@ -92,10 +92,10 @@ const ActionButton = ({ onClick, variant = 'primary', children, icon, isLoading 
 export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
   const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [_isLoading, setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
-  
+
   // Sidebar & Navigation State
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState('dashboard');
@@ -117,7 +117,7 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
     try {
       const res = await getAdminRequests(adminRole);
       if (res.success) setRequests(res.requests);
-    } catch (err) {
+    } catch (_err) {
       toast.error("Sync failed");
     } finally {
       setIsLoading(false);
@@ -239,7 +239,7 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
             </div>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-6">
           <div className="text-right hidden sm:block">
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-0.5">Document Type</div>
@@ -276,7 +276,7 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
       <Topbar
         user={adminInfo}
         onSignOut={onSignOut}
-        onOpenSettings={() => {}}
+        onOpenSettings={() => { }}
         theme="dark"
         sidebarCollapsed={sidebarCollapsed}
       />
@@ -296,20 +296,20 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <MetricPill 
-                  label="Total Revenue" 
-                  value="₱24,500" 
-                  trend="+12%" 
+                <MetricPill
+                  label="Total Revenue"
+                  value="₱24,500"
+                  trend="+12%"
                   icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
                 />
-                <MetricPill 
-                  label="Pending Requests" 
-                  value={requests.length} 
+                <MetricPill
+                  label="Pending Requests"
+                  value={requests.length}
                   icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
                 />
-                <MetricPill 
-                  label="Processed Today" 
-                  value="142" 
+                <MetricPill
+                  label="Processed Today"
+                  value="142"
                   icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
                 />
               </div>
@@ -317,7 +317,7 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
               <GlassCard className="p-6">
                 <h3 className="text-xl font-bold text-white mb-4">Recent Activity</h3>
                 <div className="space-y-4">
-                  {requests.slice(0, 5).map((req, idx) => (
+                  {requests.slice(0, 5).map((req, _idx) => (
                     <div key={req.id} className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.02] border border-white/[0.05]">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold">
@@ -377,7 +377,7 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
                             <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                           </button>
                         </div>
-                        
+
                         <div className="grid grid-cols-2 gap-3">
                           <div className="p-3 rounded-xl bg-black/20 border border-white/5">
                             <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Clearance</p>
@@ -395,7 +395,7 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
                           <h4 className="text-xs font-bold text-slate-500 uppercase mb-3">Documents</h4>
                           <DocumentUpload requestId={selectedRequest.id} userId={adminId} isAdmin={true} />
                         </div>
-                        
+
                         <div>
                           <h4 className="text-xs font-bold text-slate-500 uppercase mb-3">Comments</h4>
                           <RequestComments requestId={selectedRequest.id} userId={adminId} />
@@ -404,9 +404,9 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
 
                       <div className="p-6 border-t border-white/5 bg-black/20">
                         <div className="space-y-3">
-                          <ActionButton 
-                            variant="primary" 
-                            onClick={() => processAction('approve', selectedRequest.id)} 
+                          <ActionButton
+                            variant="primary"
+                            onClick={() => processAction('approve', selectedRequest.id)}
                             isLoading={actionLoading}
                             icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
                           >
@@ -414,15 +414,15 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
                           </ActionButton>
 
                           <div className="flex gap-2">
-                            <input 
-                              type="text" 
-                              placeholder="Rejection reason..." 
+                            <input
+                              type="text"
+                              placeholder="Rejection reason..."
                               className="flex-1 h-12 px-4 rounded-full bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-red-500/50"
                               value={rejectReason}
                               onChange={(e) => setRejectReason(e.target.value)}
                             />
-                            <ActionButton 
-                              variant="danger" 
+                            <ActionButton
+                              variant="danger"
                               onClick={() => processAction('reject', selectedRequest.id)}
                               isLoading={actionLoading}
                             >

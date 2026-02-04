@@ -70,7 +70,7 @@ export default function StudentDashboard({ studentId, studentInfo, onSignOut, on
       } else {
         toast.error(response.error || 'Failed to create clearance request');
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error('Error creating request');
     } finally {
       setLoading(false);
@@ -87,7 +87,7 @@ export default function StudentDashboard({ studentId, studentInfo, onSignOut, on
       } else {
         toast.error(response.error || 'Failed to resubmit request');
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error('Error resubmitting request');
     } finally {
       setLoading(false);
@@ -108,7 +108,7 @@ export default function StudentDashboard({ studentId, studentInfo, onSignOut, on
       } else {
         toast.error(response.error || 'Failed to delete request');
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error('Error deleting request');
     } finally {
       setLoading(false);
@@ -160,11 +160,10 @@ export default function StudentDashboard({ studentId, studentInfo, onSignOut, on
             <button
               key={item.id}
               onClick={() => setActiveView(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                activeView === item.id
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeView === item.id
                   ? 'bg-white text-green-600 shadow-lg shadow-green-900/20 font-semibold'
                   : 'text-white/80 hover:bg-white/10 hover:text-white'
-              }`}
+                }`}
             >
               <span className="text-xl">{item.icon}</span>
               {sidebarOpen && <span className="font-medium">{item.label}</span>}
@@ -271,7 +270,7 @@ export default function StudentDashboard({ studentId, studentInfo, onSignOut, on
 }
 
 // Dashboard View - Green Theme
-function DashboardView({ studentInfo, requests = [] }) {
+function DashboardView({ studentInfo: _studentInfo, requests = [] }) {
   const pendingCount = Array.isArray(requests) ? requests.filter(r => !r.is_completed).length : 0;
   const completedCount = Array.isArray(requests) ? requests.filter(r => r.is_completed).length : 0;
   const totalCount = Array.isArray(requests) ? requests.length : 0;
@@ -344,11 +343,10 @@ function DashboardView({ studentInfo, requests = [] }) {
                     <p className="text-xs text-gray-500">{new Date(req.created_at).toLocaleDateString()}</p>
                   </div>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  req.is_completed
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${req.is_completed
                     ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                     : 'bg-orange-100 text-orange-700 border border-orange-200'
-                }`}>
+                  }`}>
                   {req.is_completed ? 'Completed' : 'Pending'}
                 </span>
               </motion.div>
@@ -401,7 +399,7 @@ function NewClearanceView({ clearanceTypes, selectedClearanceType, setSelectedCl
 // My Clearances View - Green Theme
 function MyClearancesView({ requests = [], studentId, handleResubmit, handleDelete, loading }) {
   const requestsArray = Array.isArray(requests) ? requests : [];
-  
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">My Clearances</h2>
@@ -421,23 +419,22 @@ function MyClearancesView({ requests = [], studentId, handleResubmit, handleDele
                   <h3 className="text-lg font-bold text-gray-900">{request.document_type}</h3>
                   <p className="text-sm text-gray-600">Created: {new Date(request.created_at).toLocaleDateString()}</p>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  request.is_completed
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${request.is_completed
                     ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                     : 'bg-orange-100 text-orange-700 border border-orange-200'
-                }`}>
+                  }`}>
                   {request.is_completed ? 'Completed' : 'Pending'}
                 </span>
               </div>
-              
+
               <div className="space-y-4">
                 <DocumentUpload requestId={request.id} userId={studentId} />
                 <RequestComments requestId={request.id} userId={studentId} userRole="student" />
-                
+
                 {request.is_completed && (
                   <CertificateDownload requestId={request.id} userId={studentId} />
                 )}
-                
+
                 <div className="flex gap-2">
                   {!request.is_completed && (
                     <>

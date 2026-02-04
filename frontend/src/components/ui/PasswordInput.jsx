@@ -1,13 +1,13 @@
 import { useState } from 'react';
 
-export default function PasswordInput({ 
-  value, 
-  onChange, 
+export default function PasswordInput({
+  value,
+  onChange,
   placeholder = '••••••••',
   required = false,
   minLength,
   label,
-  showStrength = false,
+  showStrength: _showStrength = false,
   className = ''
 }) {
   const [showPassword, setShowPassword] = useState(false);

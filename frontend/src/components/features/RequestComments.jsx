@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { createComment, getRequestComments, deleteComment } from '../../services/api';
 import { ConfirmModal } from '../ui/Modal';
 
-export default function RequestComments({ requestId, userId, userRole }) {
+export default function RequestComments({ requestId, userId, userRole: _userRole }) {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
@@ -12,7 +12,7 @@ export default function RequestComments({ requestId, userId, userRole }) {
 
   useEffect(() => {
     fetchComments();
-    
+
     // Poll for new comments every 10 seconds
     const interval = setInterval(fetchComments, 10000);
     return () => clearInterval(interval);
@@ -33,7 +33,7 @@ export default function RequestComments({ requestId, userId, userRole }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!newComment.trim()) {
       toast.error('Please enter a comment');
       return;
@@ -82,7 +82,7 @@ export default function RequestComments({ requestId, userId, userRole }) {
       return <span className="badge badge-info text-xs">Student</span>;
     }
     if (role.includes('admin')) {
-      const adminType = role.replace('_admin', '').split('_').map(word => 
+      const adminType = role.replace('_admin', '').split('_').map(word =>
         word.charAt(0).toUpperCase() + word.slice(1)
       ).join(' ');
       return <span className="badge badge-warning text-xs">{adminType} Admin</span>;
@@ -163,7 +163,7 @@ export default function RequestComments({ requestId, userId, userRole }) {
                     </span>
                   </div>
                 </div>
-                
+
                 {comment.user_id === userId && (
                   <button
                     onClick={() => handleDelete(comment.id)}
@@ -176,7 +176,7 @@ export default function RequestComments({ requestId, userId, userRole }) {
                   </button>
                 )}
               </div>
-              
+
               <p className="text-gray-700 whitespace-pre-wrap">{comment.comment_text}</p>
             </div>
           ))}

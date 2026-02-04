@@ -1,13 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from './lib/supabase';
-import StudentDashboard from './pages/StudentDashboard';
+import StudentDashboardGraduation from './pages/StudentDashboardGraduation';
 import AdminDashboard from './pages/AdminDashboard';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import ProfessorDashboard from './pages/ProfessorDashboard';
+import LibraryAdminDashboard from './pages/LibraryAdminDashboard';
+import CashierAdminDashboard from './pages/CashierAdminDashboard';
+import RegistrarAdminDashboard from './pages/RegistrarAdminDashboard';
 import EnvironmentalImpact from './components/features/EnvironmentalImpact';
 import Settings from './components/features/Settings';
 import Loader from './components/ui/Loader';
+import ClickSpark from './components/ui/ClickSpark';
 import LandingPage from './pages/LandingPage';
 import PixelTrail from './components/visuals/PixelTrail';
 import AuthPage from './pages/auth/AuthPage';
@@ -45,9 +50,19 @@ function App() {
     setIsDarkMode(prev => {
       const newMode = !prev;
       localStorage.setItem('theme', newMode ? 'dark' : 'light');
+      document.documentElement.classList.toggle('dark', newMode);
       return newMode;
     });
   };
+
+  // Sync theme on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+      setIsDarkMode(savedTheme === 'dark');
+      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+    }
+  }, []);
 
   useEffect(() => {
     if (appMode === 'loader') {
@@ -84,10 +99,10 @@ function App() {
   useEffect(() => {
     let isMounted = true;
     checkUser(isMounted);
-    
+
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
-      
+
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
         await fetchProfile(session.user.id, isMounted);
@@ -98,7 +113,7 @@ function App() {
         setProfile(null);
         setSelectedRole(null);
         sessionStorage.removeItem('selectedRole');
-        
+
         // Redirect to role selection if not already there
         if (appMode !== 'roleSelection' && appMode !== 'landing') {
           setAppMode('roleSelection');
@@ -117,7 +132,7 @@ function App() {
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error && error.name !== 'AbortError') console.error('Error getting session:', error);
-      
+
       if (isMounted && session?.user) {
         setUser(session.user);
         try {
@@ -134,7 +149,7 @@ function App() {
   const fetchProfile = async (userId, isMounted = true) => {
     if (fetchingProfileRef.current) return;
     fetchingProfileRef.current = true;
-    
+
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -172,16 +187,16 @@ function App() {
       setUser(null);
       setProfile(null);
       setSelectedRole(null);
-      
+
       // Clear ALL storage
       sessionStorage.clear();
       localStorage.clear();
-      
+
       // Sign out from Supabase (this clears auth tokens)
       await supabase.auth.signOut({ scope: 'global' });
-      
+
       toast.success('Signed out successfully');
-      
+
       // Force immediate reload to clear all cached state
       window.location.href = '/';
     } catch (error) {
@@ -197,15 +212,22 @@ function App() {
 
   // 1. Initial Loading State (Backend check)
   if (initializing && appMode === 'app') {
-     return <Loader />;
+    return <Loader />;
   }
 
   return (
-    <div className={`min-h-screen w-full font-sans transition-colors duration-500 ${appMode === 'app' && user ? 'bg-[#021205] text-white' : (isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#f8fafc] text-slate-800')}`}>
-      {appMode === 'app' && user && <div className="fixed inset-0 z-0 grid-bg opacity-20 pointer-events-none"></div>}
-      
-      <AnimatePresence mode="wait">
-        
+    <ClickSpark
+      sparkColor={isDarkMode ? '#22c55e' : '#10b981'}
+      sparkSize={13}
+      sparkRadius={15}
+      sparkCount={10}
+      duration={400}
+    >
+      <div className={`min-h-screen w-full font-sans transition-colors duration-500 ${appMode === 'app' && user ? 'bg-[#021205] text-white' : (isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#f8fafc] text-slate-800')}`}>
+        {appMode === 'app' && user && <div className="fixed inset-0 z-0 grid-bg opacity-20 pointer-events-none"></div>}
+
+        <AnimatePresence mode="wait">
+
         {/* PHASE 1: LOADER */}
         {appMode === 'loader' && (
           <motion.div key="loader" exit={{ opacity: 0 }} className="absolute inset-0 z-50">
@@ -222,14 +244,14 @@ function App() {
 
         {/* PHASE 2.5: ROLE SELECTION */}
         {appMode === 'roleSelection' && (
-          <motion.div 
-            key="roleSelection" 
+          <motion.div
+            key="roleSelection"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className={`relative z-40 ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}
           >
-            <RoleSelectionPage 
+            <RoleSelectionPage
               onRoleSelect={handleRoleSelect}
               onBackToHome={() => {
                 setAppMode('landing');
@@ -242,7 +264,7 @@ function App() {
 
         {/* PHASE 3: MAIN APP (Auth or Dashboard) */}
         {appMode === 'app' && (
-          <motion.div 
+          <motion.div
             key="app"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -251,40 +273,71 @@ function App() {
           >
             {!user || !profile ? (
               // --- AUTH SCREEN ---
-              <AuthPage 
+              <AuthPage
                 isDark={isDarkMode}
                 selectedRole={selectedRole}
-                onBackToHome={backToRoleSelection} 
+                onBackToHome={backToRoleSelection}
               />
             ) : (
               // --- DASHBOARD (ISU GLASSMORPHISM) ---
               <div className="min-h-screen relative">
-                {['library_admin', 'cashier_admin', 'registrar_admin'].includes(profile.role) ? (
-                   // --- STANDALONE ADMIN DASHBOARD ---
-                   <AdminDashboard adminId={user.id} adminRole={profile.role} onSignOut={handleSignOut} />
+                {profile.role === 'library_admin' ? (
+                  // --- LIBRARY ADMIN DASHBOARD ---
+                  <LibraryAdminDashboard
+                    adminId={user.id}
+                    onSignOut={handleSignOut}
+                    onOpenSettings={() => setShowSettings(true)}
+                    isDarkMode={isDarkMode}
+                  />
+                ) : profile.role === 'cashier_admin' ? (
+                  // --- CASHIER ADMIN DASHBOARD ---
+                  <CashierAdminDashboard
+                    adminId={user.id}
+                    onSignOut={handleSignOut}
+                    onOpenSettings={() => setShowSettings(true)}
+                    isDarkMode={isDarkMode}
+                  />
+                ) : profile.role === 'registrar_admin' ? (
+                  // --- REGISTRAR ADMIN DASHBOARD ---
+                  <RegistrarAdminDashboard
+                    adminId={user.id}
+                    onSignOut={handleSignOut}
+                    onOpenSettings={() => setShowSettings(true)}
+                    isDarkMode={isDarkMode}
+                  />
+                ) : profile.role === 'professor' ? (
+                  // --- PROFESSOR DASHBOARD ---
+                  <ProfessorDashboard
+                    professorId={user.id}
+                    professorInfo={profile}
+                    onSignOut={handleSignOut}
+                    onOpenSettings={() => setShowSettings(true)}
+                    isDarkMode={isDarkMode}
+                  />
                 ) : (
-                  // --- STUDENT DASHBOARD (Full Screen) ---
+                  // --- STUDENT OR SUPER ADMIN DASHBOARD ---
                   <>
                     {profile.role === 'student' ? (
-                      <StudentDashboard 
-                        studentId={user.id} 
-                        studentInfo={profile} 
+                      <StudentDashboardGraduation
+                        studentId={user.id}
+                        studentInfo={profile}
                         onSignOut={handleSignOut}
                         onOpenSettings={() => setShowSettings(true)}
+                        isDarkMode={isDarkMode}
                       />
                     ) : (
                       // --- SUPER ADMIN LAYOUT (Green/Nature Theme) ---
                       <>
-                         <div className="absolute inset-0 z-0 opacity-50 pointer-events-none">
-                            <PixelTrail 
-                              gridSize={60} 
-                              trailSize={0.2} 
-                              maxAge={300} 
-                              interpolate={8} 
-                              color="#22c55e" 
-                              glProps={{ antialias: false, powerPreference: 'high-performance', alpha: true }}
-                            />
-                         </div>
+                        <div className="absolute inset-0 z-0 opacity-50 pointer-events-none">
+                          <PixelTrail
+                            gridSize={60}
+                            trailSize={0.2}
+                            maxAge={300}
+                            interpolate={8}
+                            color="#22c55e"
+                            glProps={{ antialias: false, powerPreference: 'high-performance', alpha: true }}
+                          />
+                        </div>
                         <header className="glass-panel sticky top-0 z-50 border-b border-white/10">
                           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                             <div className="flex justify-between items-center h-20">
@@ -298,17 +351,17 @@ function App() {
                                   </div>
                                 </div>
                               </div>
-                              
+
                               <div className="flex items-center gap-6">
                                 <button onClick={() => setShowSettings(true)} className="text-gray-400 hover:text-primary-400 transition-colors">
-                                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                 </button>
-                                
+
                                 <div className="text-right hidden sm:block border-l border-white/10 pl-6">
                                   <p className="text-sm font-bold text-white tracking-wide">{profile.full_name}</p>
                                   <p className="text-[10px] text-primary-400 uppercase tracking-widest">{profile.role.replace('_', ' ')}</p>
                                 </div>
-                                
+
                                 <button onClick={handleSignOut} className="rounded-none border border-red-500/50 bg-red-500/10 px-4 py-2 text-xs font-bold text-red-400 hover:bg-red-500 hover:text-white transition-all">
                                   LOGOUT
                                 </button>
@@ -331,21 +384,28 @@ function App() {
             )}
           </motion.div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>
 
-      {/* Settings Modal (Overlay) */}
-      {showSettings && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-           <div className="glass-card p-1">
-             <Settings
-               user={user}
-               profile={profile}
-               onClose={() => setShowSettings(false)}
-             />
-           </div>
-        </div>
-      )}
-    </div>
+        {/* Settings Modal (Overlay) */}
+        {showSettings && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="glass-card p-1">
+              <Settings
+                user={user}
+                profile={profile}
+                onClose={() => setShowSettings(false)}
+                theme={isDarkMode ? 'dark' : 'light'}
+                setTheme={(newTheme) => {
+                  setIsDarkMode(newTheme === 'dark');
+                  localStorage.setItem('theme', newTheme);
+                  document.documentElement.classList.toggle('dark', newTheme === 'dark');
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </ClickSpark>
   );
 }
 

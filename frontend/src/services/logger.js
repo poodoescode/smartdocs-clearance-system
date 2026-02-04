@@ -26,7 +26,7 @@ class Logger {
     if (isDevelopment) {
       console.error('[ERROR]', new Date().toISOString(), ...args);
     }
-    
+
     // In production, send to error tracking service
     if (isProduction) {
       this.sendToErrorService('error', args);
@@ -40,7 +40,7 @@ class Logger {
     if (isDevelopment) {
       console.warn('[WARN]', new Date().toISOString(), ...args);
     }
-    
+
     if (isProduction) {
       this.sendToErrorService('warn', args);
     }
@@ -86,7 +86,7 @@ class Logger {
         error
       );
     }
-    
+
     if (isProduction) {
       this.sendToErrorService('api_error', { method, url, error });
     }
@@ -106,7 +106,7 @@ class Logger {
     //     Sentry.captureMessage(JSON.stringify(data), level);
     //   }
     // }
-    
+
     // For now, just store in localStorage for debugging
     try {
       const logs = JSON.parse(localStorage.getItem('error_logs') || '[]');
@@ -115,14 +115,14 @@ class Logger {
         data: JSON.stringify(data),
         timestamp: new Date().toISOString()
       });
-      
+
       // Keep only last 50 logs
       if (logs.length > 50) {
         logs.shift();
       }
-      
+
       localStorage.setItem('error_logs', JSON.stringify(logs));
-    } catch (e) {
+    } catch (_e) {
       // Silently fail if localStorage is not available
     }
   }
@@ -133,7 +133,7 @@ class Logger {
   getErrorLogs() {
     try {
       return JSON.parse(localStorage.getItem('error_logs') || '[]');
-    } catch (e) {
+    } catch (_e) {
       return [];
     }
   }
@@ -144,7 +144,7 @@ class Logger {
   clearErrorLogs() {
     try {
       localStorage.removeItem('error_logs');
-    } catch (e) {
+    } catch (_e) {
       // Silently fail
     }
   }

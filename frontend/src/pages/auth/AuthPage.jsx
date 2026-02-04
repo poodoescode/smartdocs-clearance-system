@@ -6,9 +6,14 @@ import Particles from "../../components/visuals/Particles";
 import logo from "../../assets/logo.png";
 
 export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
+  // Role-based signup restriction - students cannot sign up
+  const canSignUp = selectedRole === 'admin';
+
   const [isSignUp, setIsSignUp] = useState(() => {
     // Persist auth mode in sessionStorage so refresh keeps you on the same form
-    return sessionStorage.getItem('authMode') === 'signup';
+    // But ensure students cannot start in signup mode
+    const savedMode = sessionStorage.getItem('authMode') === 'signup';
+    return canSignUp && savedMode;
   });
 
   // Save auth mode to sessionStorage whenever it changes
@@ -19,16 +24,6 @@ export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
   useEffect(() => {
     document.title = isSignUp ? "SmartDocs | Signup" : "SmartDocs | Login";
   }, [isSignUp]);
-
-  // Role-based signup restriction
-  const canSignUp = selectedRole === 'admin';
-  
-  // Override isSignUp if student tries to access signup
-  useEffect(() => {
-    if (selectedRole === 'student' && isSignUp) {
-      setIsSignUp(false);
-    }
-  }, [selectedRole, isSignUp]);
 
   return (
     <div className={`relative flex min-h-screen items-center justify-center p-4 overflow-x-hidden transition-colors duration-500 ${isDark ? 'bg-slate-950' : 'bg-[#f8fafc]'}`}>
@@ -128,11 +123,10 @@ export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
                   <button
                     onClick={() => canSignUp && setIsSignUp(!isSignUp)}
                     disabled={!canSignUp}
-                    className={`ml-1 font-bold transition-colors ${
-                      canSignUp 
-                        ? 'text-green-600 hover:text-green-500' 
+                    className={`ml-1 font-bold transition-colors ${canSignUp
+                        ? 'text-green-600 hover:text-green-500'
                         : 'text-gray-400 cursor-not-allowed'
-                    }`}
+                      }`}
                   >
                     {isSignUp ? "Sign in" : "Sign up"}
                   </button>

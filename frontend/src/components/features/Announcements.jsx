@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 
-export default function Announcements({ userRole }) {
+export default function Announcements({ userRole: _userRole }) {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
 

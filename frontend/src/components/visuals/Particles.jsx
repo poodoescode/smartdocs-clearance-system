@@ -110,7 +110,7 @@ const Particles = ({
       try {
         const canvas = document.createElement('canvas');
         return !!(window.WebGLRenderingContext && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
-      } catch (e) {
+      } catch (_e) {
         return false;
       }
     };
@@ -237,7 +237,7 @@ const Particles = ({
           container.removeChild(gl.canvas);
         }
       };
-    } catch (e) {
+    } catch (_e) {
       // Create a fallback div if initialization fails silently
       console.warn("WebGL Particles failed to initialize");
     }

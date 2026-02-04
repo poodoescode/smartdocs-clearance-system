@@ -65,23 +65,33 @@ function Scene({ gridSize, trailSize, maxAge, interpolate, easingFunction, pixel
   const size = useThree(s => s.size);
   const viewport = useThree(s => s.viewport);
 
-  const dotMaterial = useMemo(() => new DotMaterial(), []);
-  dotMaterial.uniforms.pixelColor.value = new THREE.Color(pixelColor);
+  // Create material with initial pixelColor baked in
+  const dotMaterial = useMemo(() => {
+    const material = new DotMaterial();
+    material.uniforms.pixelColor.value = new THREE.Color(pixelColor);
+    return material;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only create once, color updates handled separately
+
+  // Update pixel color when prop changes
+  useMemo(() => {
+    if (dotMaterial) {
+      dotMaterial.uniforms.pixelColor.value.set(pixelColor);
+    }
+  }, [dotMaterial, pixelColor]);
 
   const [trail, onMove] = useTrailTexture({
     size: 512,
     radius: trailSize,
     maxAge: maxAge,
     interpolate: interpolate || 0.1,
-    ease: easingFunction || (x => x)
+    ease: easingFunction || (x => x),
+    // Configure texture filters in the hook options
+    minFilter: THREE.NearestFilter,
+    magFilter: THREE.NearestFilter,
+    wrapS: THREE.ClampToEdgeWrapping,
+    wrapT: THREE.ClampToEdgeWrapping
   });
-
-  if (trail) {
-    trail.minFilter = THREE.NearestFilter;
-    trail.magFilter = THREE.NearestFilter;
-    trail.wrapS = THREE.ClampToEdgeWrapping;
-    trail.wrapT = THREE.ClampToEdgeWrapping;
-  }
 
   const scale = Math.max(viewport.width, viewport.height) / 2;
 
