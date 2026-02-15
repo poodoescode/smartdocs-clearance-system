@@ -276,4 +276,175 @@ router.post('/verify-recaptcha', async (req, res) => {
   }
 });
 
+// POST /api/auth/signup-student - Student signup with face verification
+router.post('/signup-student', async (req, res) => {
+  try {
+    const { 
+      email, 
+      password, 
+      firstName, 
+      lastName, 
+      studentNumber, 
+      courseYear,
+      recaptchaToken,
+      faceVerification // { verified: boolean, similarity: number }
+    } = req.body;
+
+    // Validate required fields
+    if (!email || !password || !firstName || !lastName || !studentNumber || !courseYear) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields' 
+      });
+    }
+
+    // Validate face verification data
+    if (!faceVerification || typeof faceVerification.verified !== 'boolean' || typeof faceVerification.similarity !== 'number') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Face verification data is required' 
+      });
+    }
+
+    // Validate reCAPTCHA
+    if (!recaptchaToken) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Please complete the reCAPTCHA verification' 
+      });
+    }
+
+    const recaptchaResult = await verifyRecaptcha(recaptchaToken);
+    if (!recaptchaResult.success) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'reCAPTCHA verification failed' 
+      });
+    }
+
+    // Validate name fields
+    if (firstName.trim().length < 2 || lastName.trim().length < 2) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Name must be at least 2 characters' 
+      });
+    }
+
+    // Validate password
+    if (password.length < 8) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Password must be at least 8 characters' 
+      });
+    }
+
+    const hasUppercase = /[A-Z]/.test(password);
+    const hasLowercase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecial = /[^A-Za-z0-9]/.test(password);
+
+    if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Password must contain uppercase, lowercase, number, and special character' 
+      });
+    }
+
+    // Determine account status based on face verification
+    const similarity = faceVerification.similarity;
+    const isAutoApproved = faceVerification.verified && similarity >= 90;
+    
+    let verificationStatus = 'pending_review';
+    let accountEnabled = false;
+
+    if (isAutoApproved) {
+      verificationStatus = 'auto_approved';
+      accountEnabled = true;
+    }
+
+    // Create auth user
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true
+    });
+
+    if (authError) {
+      console.error('Auth creation error:', authError);
+      return res.status(400).json({ 
+        success: false, 
+        error: authError.message 
+      });
+    }
+
+    // Create user profile with face verification data
+    const fullName = `${firstName.trim()} ${lastName.trim()}`;
+    
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .insert({
+        id: authData.user.id,
+        full_name: fullName,
+        role: 'student',
+        student_number: studentNumber.trim(),
+        course_year: courseYear,
+        face_verified: faceVerification.verified,
+        face_similarity: similarity,
+        verification_status: verificationStatus,
+        account_enabled: accountEnabled,
+        created_by_admin: false,
+        account_verified: isAutoApproved,
+        verification_method: 'face_verification'
+      })
+      .select()
+      .single();
+
+    if (profileError) {
+      console.error('Profile creation error:', profileError);
+      await supabase.auth.admin.deleteUser(authData.user.id);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Failed to create user profile' 
+      });
+    }
+
+    // Log authentication event
+    await supabase.from('auth_audit_log').insert({
+      user_id: authData.user.id,
+      action: 'student_signup_with_face_verification',
+      success: true,
+      metadata: {
+        face_verified: faceVerification.verified,
+        face_similarity: similarity,
+        auto_approved: isAutoApproved,
+        verification_status: verificationStatus
+      }
+    });
+
+    // Send appropriate response
+    res.json({ 
+      success: true, 
+      autoApproved: isAutoApproved,
+      similarity: similarity,
+      message: isAutoApproved 
+        ? 'Account approved! You can login now.' 
+        : 'Account pending review. Admin will verify manually.',
+      user: {
+        id: authData.user.id,
+        email: authData.user.email,
+        fullName: fullName,
+        role: 'student',
+        verificationStatus: verificationStatus
+      }
+    });
+
+  } catch (error) {
+    console.error('Student signup error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'An error occurred during signup. Please try again.' 
+    });
+  }
+});
+
 module.exports = router;

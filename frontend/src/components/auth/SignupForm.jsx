@@ -294,7 +294,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
           <input
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value.toLowerCase())}
             onBlur={() => handleBlur('email')}
             required
             className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-green-500' : 'bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500'} ${getFieldError('email', email) ? '!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900' : ''}`}

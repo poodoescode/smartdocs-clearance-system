@@ -38,7 +38,7 @@ function App() {
     return sessionStorage.getItem('selectedRole') || null;
   });
 
-  // --- UI SEQUENCE EFFECT ---
+  // --- THEME STATE ---
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark';
@@ -64,9 +64,9 @@ function App() {
     }
   }, []);
 
+  // --- UI SEQUENCE EFFECT ---
   useEffect(() => {
     if (appMode === 'loader') {
-      // Show Loader for 3 seconds, then switch to Landing Page and mark as seen
       const timer = setTimeout(() => {
         setAppMode('landing');
         sessionStorage.setItem('hasSeenLoader', 'true');
@@ -77,6 +77,7 @@ function App() {
   }, [appMode]);
 
   const enterSystem = () => {
+    sessionStorage.removeItem('authMode'); // Clear any previous auth mode
     setAppMode('roleSelection');
     sessionStorage.setItem('currentAppMode', 'roleSelection');
   };
@@ -84,6 +85,7 @@ function App() {
   const handleRoleSelect = (role) => {
     setSelectedRole(role);
     sessionStorage.setItem('selectedRole', role);
+    sessionStorage.removeItem('authMode'); // Clear any previous auth mode
     setAppMode('app');
     sessionStorage.setItem('currentAppMode', 'app');
   };
@@ -91,6 +93,7 @@ function App() {
   const backToRoleSelection = () => {
     setSelectedRole(null);
     sessionStorage.removeItem('selectedRole');
+    sessionStorage.removeItem('authMode'); // Clear auth mode when going back
     setAppMode('roleSelection');
     sessionStorage.setItem('currentAppMode', 'roleSelection');
   };
@@ -108,17 +111,20 @@ function App() {
         await fetchProfile(session.user.id, isMounted);
         await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', session.user.id);
       } else if (event === 'SIGNED_OUT') {
-        // Clear all state on sign out
         setUser(null);
         setProfile(null);
         setSelectedRole(null);
-        sessionStorage.removeItem('selectedRole');
-
-        // Redirect to role selection if not already there
-        if (appMode !== 'roleSelection' && appMode !== 'landing') {
-          setAppMode('roleSelection');
-          sessionStorage.setItem('currentAppMode', 'roleSelection');
+        
+        // Clear all session storage except the loader flag
+        const hasSeenLoader = sessionStorage.getItem('hasSeenLoader');
+        sessionStorage.clear();
+        if (hasSeenLoader) {
+          sessionStorage.setItem('hasSeenLoader', 'true');
         }
+        
+        // Reset to landing page
+        setAppMode('landing');
+        sessionStorage.setItem('currentAppMode', 'landing');
       }
     });
 
@@ -183,34 +189,36 @@ function App() {
 
   const handleSignOut = async () => {
     try {
-      // Clear all state first
+      // Clear all state
       setUser(null);
       setProfile(null);
       setSelectedRole(null);
 
-      // Clear ALL storage
+      // Clear all storage
       sessionStorage.clear();
       localStorage.clear();
 
-      // Sign out from Supabase (this clears auth tokens)
+      // Sign out from Supabase
       await supabase.auth.signOut({ scope: 'global' });
 
       toast.success('Signed out successfully');
 
-      // Force immediate reload to clear all cached state
-      window.location.href = '/';
+      // Reset to landing page
+      setAppMode('landing');
+      sessionStorage.setItem('currentAppMode', 'landing');
+      sessionStorage.setItem('hasSeenLoader', 'true');
     } catch (error) {
       console.error('Logout error:', error);
-      // Even if signout fails, clear everything and reload
+      // Even if signout fails, clear everything and reset
       sessionStorage.clear();
       localStorage.clear();
-      window.location.href = '/';
+      setAppMode('landing');
+      sessionStorage.setItem('currentAppMode', 'landing');
+      sessionStorage.setItem('hasSeenLoader', 'true');
     }
   };
 
   // --- MAIN RENDER ---
-
-  // 1. Initial Loading State (Backend check)
   if (initializing && appMode === 'app') {
     return <Loader />;
   }
@@ -228,162 +236,154 @@ function App() {
 
         <AnimatePresence mode="wait">
 
-        {/* PHASE 1: LOADER */}
-        {appMode === 'loader' && (
-          <motion.div key="loader" exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <Loader />
-          </motion.div>
-        )}
+          {/* PHASE 1: LOADER */}
+          {appMode === 'loader' && (
+            <motion.div key="loader" exit={{ opacity: 0 }} className="absolute inset-0 z-50">
+              <Loader />
+            </motion.div>
+          )}
 
-        {/* PHASE 2: LANDING PAGE */}
-        {appMode === 'landing' && (
-          <motion.div key="landing" exit={{ opacity: 0, y: -100 }} className={`relative z-40 ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
-            <LandingPage onEnter={enterSystem} isDark={isDarkMode} toggleTheme={toggleTheme} />
-          </motion.div>
-        )}
+          {/* PHASE 2: LANDING PAGE */}
+          {appMode === 'landing' && (
+            <motion.div key="landing" exit={{ opacity: 0, y: -100 }} className={`relative z-40 ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
+              <LandingPage onEnter={enterSystem} isDark={isDarkMode} toggleTheme={toggleTheme} />
+            </motion.div>
+          )}
 
-        {/* PHASE 2.5: ROLE SELECTION */}
-        {appMode === 'roleSelection' && (
-          <motion.div
-            key="roleSelection"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className={`relative z-40 ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}
-          >
-            <RoleSelectionPage
-              onRoleSelect={handleRoleSelect}
-              onBackToHome={() => {
-                setAppMode('landing');
-                sessionStorage.setItem('currentAppMode', 'landing');
-              }}
-              isDark={isDarkMode}
-            />
-          </motion.div>
-        )}
-
-        {/* PHASE 3: MAIN APP (Auth or Dashboard) */}
-        {appMode === 'app' && (
-          <motion.div
-            key="app"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 1 }}
-            className="relative z-10 min-h-screen"
-          >
-            {!user || !profile ? (
-              // --- AUTH SCREEN ---
-              <AuthPage
+          {/* PHASE 2.5: ROLE SELECTION */}
+          {appMode === 'roleSelection' && (
+            <motion.div
+              key="roleSelection"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className={`relative z-40 ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}
+            >
+              <RoleSelectionPage
+                onRoleSelect={handleRoleSelect}
+                onBackToHome={() => {
+                  setAppMode('landing');
+                  sessionStorage.setItem('currentAppMode', 'landing');
+                }}
                 isDark={isDarkMode}
-                selectedRole={selectedRole}
-                onBackToHome={backToRoleSelection}
               />
-            ) : (
-              // --- DASHBOARD (ISU GLASSMORPHISM) ---
-              <div className="min-h-screen relative">
-                {profile.role === 'library_admin' ? (
-                  // --- LIBRARY ADMIN DASHBOARD ---
-                  <LibraryAdminDashboard
-                    adminId={user.id}
-                    onSignOut={handleSignOut}
-                    onOpenSettings={() => setShowSettings(true)}
-                    isDarkMode={isDarkMode}
-                  />
-                ) : profile.role === 'cashier_admin' ? (
-                  // --- CASHIER ADMIN DASHBOARD ---
-                  <CashierAdminDashboard
-                    adminId={user.id}
-                    onSignOut={handleSignOut}
-                    onOpenSettings={() => setShowSettings(true)}
-                    isDarkMode={isDarkMode}
-                  />
-                ) : profile.role === 'registrar_admin' ? (
-                  // --- REGISTRAR ADMIN DASHBOARD ---
-                  <RegistrarAdminDashboard
-                    adminId={user.id}
-                    onSignOut={handleSignOut}
-                    onOpenSettings={() => setShowSettings(true)}
-                    isDarkMode={isDarkMode}
-                  />
-                ) : profile.role === 'professor' ? (
-                  // --- PROFESSOR DASHBOARD ---
-                  <ProfessorDashboard
-                    professorId={user.id}
-                    professorInfo={profile}
-                    onSignOut={handleSignOut}
-                    onOpenSettings={() => setShowSettings(true)}
-                    isDarkMode={isDarkMode}
-                  />
-                ) : (
-                  // --- STUDENT OR SUPER ADMIN DASHBOARD ---
-                  <>
-                    {profile.role === 'student' ? (
-                      <StudentDashboardGraduation
-                        studentId={user.id}
-                        studentInfo={profile}
-                        onSignOut={handleSignOut}
-                        onOpenSettings={() => setShowSettings(true)}
-                        isDarkMode={isDarkMode}
-                      />
-                    ) : (
-                      // --- SUPER ADMIN LAYOUT (Green/Nature Theme) ---
-                      <>
-                        <div className="absolute inset-0 z-0 opacity-50 pointer-events-none">
-                          <PixelTrail
-                            gridSize={60}
-                            trailSize={0.2}
-                            maxAge={300}
-                            interpolate={8}
-                            color="#22c55e"
-                            glProps={{ antialias: false, powerPreference: 'high-performance', alpha: true }}
-                          />
-                        </div>
-                        <header className="glass-panel sticky top-0 z-50 border-b border-white/10">
-                          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                            <div className="flex justify-between items-center h-20">
-                              <div className="flex items-center gap-4">
-                                <img src={logo} alt="Smart Clearance System Logo" className="w-12 h-12 object-contain" />
-                                <div>
-                                  <h1 className="font-display text-xl font-bold text-white tracking-wider">SMART<span className="text-primary-400">CLEARANCE</span></h1>
-                                  <div className="flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-secondary-500 animate-pulse"></span>
-                                    <p className="text-[10px] text-primary-400/80 tracking-widest uppercase">System Online</p>
+            </motion.div>
+          )}
+
+          {/* PHASE 3: MAIN APP (Auth or Dashboard) */}
+          {appMode === 'app' && (
+            <motion.div
+              key="app"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 1 }}
+              className="relative z-10 min-h-screen"
+            >
+              {!user || !profile ? (
+                <AuthPage
+                  isDark={isDarkMode}
+                  selectedRole={selectedRole}
+                  onBackToHome={backToRoleSelection}
+                />
+              ) : (
+                <div className="min-h-screen relative">
+                  {profile.role === 'library_admin' ? (
+                    <LibraryAdminDashboard
+                      adminId={user.id}
+                      onSignOut={handleSignOut}
+                      onOpenSettings={() => setShowSettings(true)}
+                      isDarkMode={isDarkMode}
+                    />
+                  ) : profile.role === 'cashier_admin' ? (
+                    <CashierAdminDashboard
+                      adminId={user.id}
+                      onSignOut={handleSignOut}
+                      onOpenSettings={() => setShowSettings(true)}
+                      isDarkMode={isDarkMode}
+                    />
+                  ) : profile.role === 'registrar_admin' ? (
+                    <RegistrarAdminDashboard
+                      adminId={user.id}
+                      onSignOut={handleSignOut}
+                      onOpenSettings={() => setShowSettings(true)}
+                      isDarkMode={isDarkMode}
+                    />
+                  ) : profile.role === 'professor' ? (
+                    <ProfessorDashboard
+                      professorId={user.id}
+                      professorInfo={profile}
+                      onSignOut={handleSignOut}
+                      onOpenSettings={() => setShowSettings(true)}
+                      isDarkMode={isDarkMode}
+                    />
+                  ) : (
+                    <>
+                      {profile.role === 'student' ? (
+                        <StudentDashboardGraduation
+                          studentId={user.id}
+                          studentInfo={profile}
+                          onSignOut={handleSignOut}
+                          onOpenSettings={() => setShowSettings(true)}
+                          isDarkMode={isDarkMode}
+                        />
+                      ) : (
+                        <>
+                          <div className="absolute inset-0 z-0 opacity-50 pointer-events-none">
+                            <PixelTrail
+                              gridSize={60}
+                              trailSize={0.2}
+                              maxAge={300}
+                              interpolate={8}
+                              color="#22c55e"
+                              glProps={{ antialias: false, powerPreference: 'high-performance', alpha: true }}
+                            />
+                          </div>
+                          <header className="glass-panel sticky top-0 z-50 border-b border-white/10">
+                            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                              <div className="flex justify-between items-center h-20">
+                                <div className="flex items-center gap-4">
+                                  <img src={logo} alt="Smart Clearance System Logo" className="w-12 h-12 object-contain" />
+                                  <div>
+                                    <h1 className="font-display text-xl font-bold text-white tracking-wider">SMART<span className="text-primary-400">CLEARANCE</span></h1>
+                                    <div className="flex items-center gap-2">
+                                      <span className="h-1.5 w-1.5 rounded-full bg-secondary-500 animate-pulse"></span>
+                                      <p className="text-[10px] text-primary-400/80 tracking-widest uppercase">System Online</p>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
 
-                              <div className="flex items-center gap-6">
-                                <button onClick={() => setShowSettings(true)} className="text-gray-400 hover:text-primary-400 transition-colors">
-                                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                </button>
+                                <div className="flex items-center gap-6">
+                                  <button onClick={() => setShowSettings(true)} className="text-gray-400 hover:text-primary-400 transition-colors">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                  </button>
 
-                                <div className="text-right hidden sm:block border-l border-white/10 pl-6">
-                                  <p className="text-sm font-bold text-white tracking-wide">{profile.full_name}</p>
-                                  <p className="text-[10px] text-primary-400 uppercase tracking-widest">{profile.role.replace('_', ' ')}</p>
+                                  <div className="text-right hidden sm:block border-l border-white/10 pl-6">
+                                    <p className="text-sm font-bold text-white tracking-wide">{profile.full_name}</p>
+                                    <p className="text-[10px] text-primary-400 uppercase tracking-widest">{profile.role.replace('_', ' ')}</p>
+                                  </div>
+
+                                  <button onClick={handleSignOut} className="rounded-none border border-red-500/50 bg-red-500/10 px-4 py-2 text-xs font-bold text-red-400 hover:bg-red-500 hover:text-white transition-all">
+                                    LOGOUT
+                                  </button>
                                 </div>
-
-                                <button onClick={handleSignOut} className="rounded-none border border-red-500/50 bg-red-500/10 px-4 py-2 text-xs font-bold text-red-400 hover:bg-red-500 hover:text-white transition-all">
-                                  LOGOUT
-                                </button>
                               </div>
                             </div>
-                          </div>
-                        </header>
+                          </header>
 
-                        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
-                          <div className="mb-8 glass-card rounded-xl p-6 border-l-4 border-l-secondary-500">
-                            <EnvironmentalImpact studentId={null} />
-                          </div>
-                          <SuperAdminDashboard adminId={user.id} />
-                        </main>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-          </motion.div>
-        )}
+                          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+                            <div className="mb-8 glass-card rounded-xl p-6 border-l-4 border-l-secondary-500">
+                              <EnvironmentalImpact studentId={null} />
+                            </div>
+                            <SuperAdminDashboard adminId={user.id} />
+                          </main>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          )}
         </AnimatePresence>
 
         {/* Settings Modal (Overlay) */}

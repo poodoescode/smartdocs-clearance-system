@@ -1,8 +1,11 @@
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
 import Particles from '../../components/visuals/Particles';
 import logo from '../../assets/logo.png';
 
 export default function RoleSelectionPage({ onRoleSelect, onBackToHome, isDark }) {
+  const [showAdminModal, setShowAdminModal] = useState(false);
+
   const roles = [
     {
       id: 'student',
@@ -27,40 +30,64 @@ export default function RoleSelectionPage({ onRoleSelect, onBackToHome, isDark }
       color: 'green'
     },
     {
+      id: 'admin',
+      title: 'Admin',
+      description: 'Process clearances & approvals',
+      icon: (
+        <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+      ),
+      color: 'indigo',
+      isAdmin: true
+    }
+  ];
+
+  const adminTypes = [
+    {
       id: 'library_admin',
       title: 'Library Admin',
       description: 'Process library clearances',
       icon: (
-        <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
         </svg>
-      ),
-      color: 'indigo'
+      )
     },
     {
       id: 'cashier_admin',
       title: 'Cashier Admin',
       description: 'Process financial clearances',
       icon: (
-        <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-      ),
-      color: 'indigo'
+      )
     },
     {
       id: 'registrar_admin',
       title: 'Registrar Admin',
       description: 'Final approval & certificates',
       icon: (
-        <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
         </svg>
-      ),
-      color: 'indigo'
+      )
     }
-    // Note: super_admin role is hidden from public selection
   ];
+
+  const handleRoleClick = (roleId) => {
+    if (roleId === 'admin') {
+      setShowAdminModal(true);
+    } else {
+      onRoleSelect(roleId);
+    }
+  };
+
+  const handleAdminSelect = (adminType) => {
+    setShowAdminModal(false);
+    onRoleSelect(adminType);
+  };
 
   return (
     <div className={`relative flex min-h-screen items-center justify-center p-4 overflow-hidden transition-colors duration-500 ${isDark ? 'bg-slate-950' : 'bg-[#f8fafc]'}`}>
@@ -100,9 +127,9 @@ export default function RoleSelectionPage({ onRoleSelect, onBackToHome, isDark }
             transition={{ duration: 0.6 }}
             className="flex items-center justify-center gap-4 mb-6"
           >
-            <img src={logo} alt="SmartDocs Logo" className="w-16 h-16 object-contain drop-shadow-lg" />
+            <img src={logo} alt="SmartClearance Logo" className="w-16 h-16 object-contain drop-shadow-lg" />
             <h1 className={`text-5xl font-extrabold font-display transition-colors ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              SmartDocs
+              Smart<span className="text-green-500">Clearance</span>
             </h1>
           </motion.div>
 
@@ -130,7 +157,7 @@ export default function RoleSelectionPage({ onRoleSelect, onBackToHome, isDark }
         </div>
 
         {/* Role Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           {roles.map((role, index) => (
             <motion.div
               key={role.id}
@@ -138,7 +165,7 @@ export default function RoleSelectionPage({ onRoleSelect, onBackToHome, isDark }
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 + index * 0.1 }}
               whileHover={{ scale: 1.05, y: -5 }}
-              onClick={() => onRoleSelect(role.id)}
+              onClick={() => handleRoleClick(role.id)}
               className={`cursor-pointer rounded-2xl overflow-hidden transition-all duration-300 ${isDark
                   ? 'spatial-glass-dark hover:shadow-2xl hover:shadow-green-500/20'
                   : 'spatial-glass hover:shadow-2xl hover:shadow-green-500/30'
@@ -166,6 +193,82 @@ export default function RoleSelectionPage({ onRoleSelect, onBackToHome, isDark }
             </motion.div>
           ))}
         </div>
+
+        {/* Admin Type Selection Modal */}
+        <AnimatePresence>
+          {showAdminModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowAdminModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ type: "spring", duration: 0.5 }}
+                onClick={(e) => e.stopPropagation()}
+                className={`w-full max-w-2xl rounded-3xl overflow-hidden ${isDark ? 'spatial-glass-dark' : 'spatial-glass'}`}
+              >
+                {/* Modal Header */}
+                <div className={`p-6 border-b ${isDark ? 'border-slate-700' : 'border-gray-200'}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className={`text-2xl font-bold transition-colors ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        Select Admin Type
+                      </h2>
+                      <p className={`text-sm mt-1 transition-colors ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
+                        Choose your administrative role
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowAdminModal(false)}
+                      className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-white/10 text-slate-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-900'}`}
+                    >
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Admin Type Cards */}
+                <div className="p-6 space-y-3">
+                  {adminTypes.map((admin, index) => (
+                    <motion.button
+                      key={admin.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      onClick={() => handleAdminSelect(admin.id)}
+                      className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all ${isDark
+                          ? 'bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 hover:border-indigo-500'
+                          : 'bg-white/50 hover:bg-white border border-gray-200 hover:border-indigo-500'
+                        } hover:scale-[1.02]`}
+                    >
+                      <div className={`p-3 rounded-xl ${isDark ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>
+                        {admin.icon}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <h3 className={`font-bold transition-colors ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          {admin.title}
+                        </h3>
+                        <p className={`text-sm transition-colors ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
+                          {admin.description}
+                        </p>
+                      </div>
+                      <svg className={`w-6 h-6 transition-colors ${isDark ? 'text-slate-600' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Info Banner */}
         <motion.div

@@ -6,6 +6,7 @@ import Announcements from '../components/features/Announcements';
 import RequestHistory from '../components/features/RequestHistory';
 import DocumentUpload from '../components/features/DocumentUpload';
 import RequestComments from '../components/features/RequestComments';
+import PendingAccountsView from '../components/admin/PendingAccountsView';
 import Sidebar from '../components/layout/Sidebar';
 import Topbar from '../components/layout/Topbar';
 
@@ -188,6 +189,15 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+        </svg>
+      )
+    },
+    {
+      id: 'pending-accounts',
+      label: 'Pending Accounts',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
         </svg>
       )
     },
@@ -451,6 +461,14 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
             <div>
               <h2 className="text-2xl font-bold text-white mb-6">Announcements</h2>
               <Announcements userRole={adminRole} />
+            </div>
+          )}
+
+          {/* Pending Accounts View */}
+          {activeView === 'pending-accounts' && (
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-6">Pending Student Accounts</h2>
+              <PendingAccountsView adminId={adminId} adminRole={adminRole} isDark={true} />
             </div>
           )}
 

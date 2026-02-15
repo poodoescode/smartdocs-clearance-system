@@ -4,7 +4,6 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
-const { checkAndEscalateRequests } = require('./services/escalationService');
 
 const app = express();
 app.use(cors());
@@ -32,6 +31,7 @@ const commentRoutes = require('./routes/commentRoutes');
 const certificateRoutes = require('./routes/certificateRoutes');
 const escalationRoutes = require('./routes/escalationRoutes');
 const graduationRoutes = require('./routes/graduationRoutes'); // NEW: Graduation clearance routes
+const adminAccountRoutes = require('./routes/adminAccountRoutes'); // NEW: Admin account management
 
 // Use routes
 app.use('/api/requests', requestRoutes);
@@ -41,33 +41,13 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/certificates', certificateRoutes);
 app.use('/api/escalation', escalationRoutes);
 app.use('/api/graduation', graduationRoutes); // NEW: Graduation clearance endpoints
+app.use('/api/admin', adminAccountRoutes); // NEW: Admin account management endpoints
 
 app.get('/', (req, res) => {
-    res.send('SmartDocs backend running with production features!');
+    res.send('Smart Clearance System backend running!');
 });
 
-// Escalation cron job - runs every 6 hours
-const ESCALATION_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
-
-setInterval(async () => {
-  console.log('🔄 Running scheduled escalation check...');
-  try {
-    const result = await checkAndEscalateRequests();
-    console.log('✅ Escalation check complete:', result);
-  } catch (error) {
-    console.error('❌ Escalation check failed:', error);
-  }
-}, ESCALATION_INTERVAL);
-
-// Run escalation check on startup
-setTimeout(async () => {
-  console.log('🚀 Running initial escalation check...');
-  try {
-    const result = await checkAndEscalateRequests();
-    console.log('✅ Initial escalation check complete:', result);
-  } catch (error) {
-    console.error('❌ Initial escalation check failed:', error);
-  }
-}, 5000); // Wait 5 seconds after startup
+// Note: Automatic escalation removed - use manual escalation via /api/escalation/check endpoint
+// This gives admins more control over when to check for delayed requests
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

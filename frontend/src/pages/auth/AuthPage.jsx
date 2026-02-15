@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import LoginForm from "../../components/auth/LoginForm";
 import SignupForm from "../../components/auth/SignupForm";
+import SignupFormWithFaceVerification from "../../components/auth/SignupFormWithFaceVerification";
 import Particles from "../../components/visuals/Particles";
 import logo from "../../assets/logo.png";
 
 export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
-  // Role-based signup restriction - students cannot sign up
-  const canSignUp = selectedRole === 'admin';
+  // Role-based signup - students use face verification, admins use regular signup
+  const canSignUp = true; // Both students and admins can sign up now
 
   const [isSignUp, setIsSignUp] = useState(() => {
     // Persist auth mode in sessionStorage so refresh keeps you on the same form
@@ -77,7 +78,10 @@ export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
               <img src={logo} alt="SmartDocs Logo" className="w-10 h-10 object-contain drop-shadow-md" />
             </div>
             <button
-              onClick={onBackToHome}
+              onClick={() => {
+                sessionStorage.removeItem('authMode'); // Clear auth mode
+                onBackToHome();
+              }}
               className={`flex items-center gap-2 text-sm font-medium transition-colors ${isDark ? "text-slate-400 hover:text-white" : "text-gray-500 hover:text-gray-900"}`}
             >
               <svg
@@ -113,25 +117,17 @@ export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
             <p
               className={`text-sm font-medium transition-colors ${isDark ? "text-slate-400" : "text-gray-500"}`}
             >
-              {selectedRole === 'student' ? (
-                <span className="text-amber-500">
-                  Student accounts are created by administration. Please login with your credentials.
-                </span>
-              ) : (
-                <>
-                  {isSignUp ? "Already have an account?" : "Don't have an account?"}
-                  <button
-                    onClick={() => canSignUp && setIsSignUp(!isSignUp)}
-                    disabled={!canSignUp}
-                    className={`ml-1 font-bold transition-colors ${canSignUp
-                        ? 'text-green-600 hover:text-green-500'
-                        : 'text-gray-400 cursor-not-allowed'
-                      }`}
-                  >
-                    {isSignUp ? "Sign in" : "Sign up"}
-                  </button>
-                </>
-              )}
+              {isSignUp ? "Already have an account?" : "Don't have an account?"}
+              <button
+                onClick={() => canSignUp && setIsSignUp(!isSignUp)}
+                disabled={!canSignUp}
+                className={`ml-1 font-bold transition-colors ${canSignUp
+                    ? 'text-green-600 hover:text-green-500'
+                    : 'text-gray-400 cursor-not-allowed'
+                  }`}
+              >
+                {isSignUp ? "Sign in" : "Sign up"}
+              </button>
             </p>
           </div>
         </div>
@@ -161,11 +157,18 @@ export default function AuthPage({ onBackToHome, isDark, selectedRole }) {
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3, ease: "easeInOut" }}
               >
-                <SignupForm
-                  onSwitchMode={() => setIsSignUp(false)}
-                  isDark={isDark}
-                  selectedRole={selectedRole}
-                />
+                {selectedRole === 'student' ? (
+                  <SignupFormWithFaceVerification
+                    onSwitchMode={() => setIsSignUp(false)}
+                    isDark={isDark}
+                  />
+                ) : (
+                  <SignupForm
+                    onSwitchMode={() => setIsSignUp(false)}
+                    isDark={isDark}
+                    selectedRole={selectedRole}
+                  />
+                )}
               </motion.div>
             )}
           </AnimatePresence>

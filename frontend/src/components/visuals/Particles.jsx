@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+﻿import { useEffect, useRef } from 'react';
 import { Renderer, Camera, Geometry, Program, Mesh } from 'ogl';
 
 const defaultColors = ['#ffffff', '#ffffff', '#ffffff'];
@@ -105,7 +105,6 @@ const Particles = ({
     const container = containerRef.current;
     if (!container) return;
 
-    // Check for WebGL support
     const isWebGLAvailable = () => {
       try {
         const canvas = document.createElement('canvas');
@@ -238,10 +237,8 @@ const Particles = ({
         }
       };
     } catch (_e) {
-      // Create a fallback div if initialization fails silently
       console.warn("WebGL Particles failed to initialize");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     particleCount,
     particleSpread,
@@ -256,7 +253,7 @@ const Particles = ({
     pixelRatio
   ]);
 
-  return <div ref={containerRef} className={`relative w-full h-full ${className}`} />;
+  return <div ref={containerRef} className={`relative w-full h-full    - Dull CSS particles  Restored WebGL particles{className}`} />;
 };
 
 export default Particles;
