@@ -18,16 +18,16 @@ export async function loadFaceModels() {
 
   try {
     console.log('📥 Loading face detection models...');
-    
+
     const MODEL_URL = '/models';
-    
+
     // Load required models
     await Promise.all([
       faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
       faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
       faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
     ]);
-    
+
     modelsLoaded = true;
     console.log('✅ Face detection models loaded successfully!');
     return true;
@@ -51,10 +51,23 @@ export async function detectFace(input) {
 
     console.log('👤 Detecting face...');
 
-    // Convert File to Image if needed
+    // Convert File to Image if needed, resize for faster detection
     let imageElement = input;
     if (input instanceof File) {
-      imageElement = await faceapi.bufferToImage(input);
+      const img = await faceapi.bufferToImage(input);
+      // Resize large images to 640px max for faster neural network inference
+      const maxDim = 640;
+      if (img.width > maxDim || img.height > maxDim) {
+        const scale = maxDim / Math.max(img.width, img.height);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        imageElement = canvas;
+      } else {
+        imageElement = img;
+      }
     }
 
     // Detect face with landmarks and descriptor
@@ -103,13 +116,14 @@ export function compareFaces(descriptor1, descriptor2) {
 
     // Calculate Euclidean distance between face descriptors
     const distance = faceapi.euclideanDistance(descriptor1, descriptor2);
-    
-    // Convert distance to similarity percentage
-    // Distance ranges from 0 (identical) to ~1.5 (very different)
-    // We convert to 0-100% scale
-    const similarity = Math.max(0, Math.min(100, (1 - distance) * 100));
 
-    console.log(`📊 Face similarity: ${similarity.toFixed(2)}%`);
+    // Convert distance to similarity percentage using cosine similarity
+    // face-api.js descriptors are L2-normalized (unit vectors), so:
+    // cosine_similarity = 1 - (euclidean_distance² / 2)
+    // This gives more accurate percentages than linear mapping
+    const similarity = Math.max(0, Math.min(100, (1 - (distance * distance) / 2) * 100));
+
+    console.log(`📊 Face similarity: ${similarity.toFixed(2)}% (distance: ${distance.toFixed(4)})`);
 
     // Determine if faces match (90% threshold)
     const isMatch = similarity >= 90;
@@ -141,7 +155,7 @@ export async function verifyFace(idPhoto, videoElement) {
     // Step 1: Detect face in ID photo
     console.log('🔍 Step 1: Detecting face in ID photo...');
     const idFaceResult = await detectFace(idPhoto);
-    
+
     if (!idFaceResult.success) {
       return {
         success: false,
@@ -153,7 +167,7 @@ export async function verifyFace(idPhoto, videoElement) {
     // Step 2: Detect face in live selfie
     console.log('🔍 Step 2: Detecting face in live selfie...');
     const selfieFaceResult = await detectFace(videoElement);
-    
+
     if (!selfieFaceResult.success) {
       return {
         success: false,
@@ -209,12 +223,12 @@ export function isCameraSupported() {
  */
 export async function requestCameraAccess() {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ 
-      video: { 
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
         width: { ideal: 640 },
         height: { ideal: 480 },
         facingMode: 'user'
-      } 
+      }
     });
     return {
       success: true,

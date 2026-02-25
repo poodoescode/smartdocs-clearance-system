@@ -408,7 +408,7 @@ export default function AdminDashboard({ adminId, adminRole, onSignOut }) {
 
                         <div>
                           <h4 className="text-xs font-bold text-slate-500 uppercase mb-3">Comments</h4>
-                          <RequestComments requestId={selectedRequest.id} userId={adminId} />
+                          <RequestComments requestId={selectedRequest.id} userRole={adminRole} userId={adminId} isDarkMode={true} />
                         </div>
                       </div>
 

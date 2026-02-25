@@ -1,23 +1,16 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import RequestComments from '../components/features/RequestComments';
+import DashboardLayout, { GlassCard, StatusBadge } from '../components/ui/DashboardLayout';
+import {
+  BuildingLibraryIcon, ClockIcon, CheckIcon, XMarkIcon,
+  ChatBubbleIcon, InboxStackIcon, UserIcon, ShieldCheckIcon,
+  DocumentCheckIcon, UsersIcon
+} from '../components/ui/Icons';
 
 const API_URL = import.meta.env.VITE_API_URL;
-
-const GlassCard = ({ children, className = "", onClick, delay = 0 }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ type: "spring", stiffness: 300, damping: 30, delay }}
-    onClick={onClick}
-    className={`relative overflow-hidden rounded-3xl backdrop-blur-3xl bg-white/[0.02] border border-white/[0.05] ${onClick ? 'cursor-pointer hover:bg-white/[0.05] hover:border-white/[0.1]' : ''} shadow-2xl shadow-black/50 ${className}`}
-  >
-    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] pointer-events-none mix-blend-overlay" />
-    <div className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-gradient-to-br from-indigo-500/10 via-transparent to-transparent opacity-30 blur-3xl pointer-events-none" />
-    <div className="relative z-10 h-full">{children}</div>
-  </motion.div>
-);
 
 export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSettings }) {
   const [requests, setRequests] = useState([]);
@@ -25,20 +18,25 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [comments, setComments] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeView, setActiveView] = useState('pending');
+
+  // Pending accounts state
+  const [pendingAccounts, setPendingAccounts] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [accountsLoading, setAccountsLoading] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     document.title = "Registrar Dashboard | ISU Clearance System";
     fetchPendingRequests();
+    fetchPendingAccounts();
   }, []);
 
   const fetchPendingRequests = async () => {
     setLoading(true);
     try {
       const response = await axios.get(`${API_URL}/graduation/registrar/pending`);
-      if (response.data.success) {
-        setRequests(response.data.requests);
-      }
+      if (response.data.success) setRequests(response.data.requests);
     } catch (error) {
       console.error('Error fetching requests:', error);
       toast.error('Failed to load pending clearances');
@@ -47,9 +45,65 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
     }
   };
 
+  // ── Pending Accounts Functions ──
+  const fetchPendingAccounts = async () => {
+    setAccountsLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/admin/pending-accounts`);
+      if (response.data.success) setPendingAccounts(response.data.accounts);
+    } catch (error) {
+      console.error('Error fetching pending accounts:', error);
+    } finally {
+      setAccountsLoading(false);
+    }
+  };
+
+  const handleApproveAccount = async (userId) => {
+    setActionLoading(true);
+    try {
+      const response = await axios.post(`${API_URL}/admin/approve-account`, {
+        userId,
+        adminId
+      });
+      if (response.data.success) {
+        toast.success('Account approved! Student can now login.');
+        setSelectedAccount(null);
+        fetchPendingAccounts();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to approve account');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectAccount = async (userId) => {
+    if (!rejectReason.trim()) {
+      toast.error('Please provide a reason for rejection');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const response = await axios.post(`${API_URL}/admin/reject-account`, {
+        userId,
+        adminId,
+        reason: rejectReason.trim()
+      });
+      if (response.data.success) {
+        toast.success('Account rejected.');
+        setSelectedAccount(null);
+        setRejectReason('');
+        fetchPendingAccounts();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to reject account');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleApprove = async () => {
     if (!selectedRequest) return;
-    
     setActionLoading(true);
     try {
       const response = await axios.post(`${API_URL}/graduation/registrar/approve`, {
@@ -57,15 +111,13 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
         admin_id: adminId,
         comments: comments.trim() || null
       });
-
       if (response.data.success) {
-        toast.success(`Graduation clearance completed! Certificate #${response.data.certificateNumber}`);
+        toast.success('Registrar clearance approved — certificate generated!');
         setComments('');
         setSelectedRequest(null);
         fetchPendingRequests();
       }
     } catch (error) {
-      console.error('Error approving:', error);
       toast.error(error.response?.data?.error || 'Failed to approve');
     } finally {
       setActionLoading(false);
@@ -74,12 +126,10 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
 
   const handleReject = async () => {
     if (!selectedRequest) return;
-    
     if (!comments.trim()) {
       toast.error('Please provide a reason for rejection');
       return;
     }
-
     setActionLoading(true);
     try {
       const response = await axios.post(`${API_URL}/graduation/registrar/reject`, {
@@ -87,7 +137,6 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
         admin_id: adminId,
         comments: comments.trim()
       });
-
       if (response.data.success) {
         toast.success('Registrar clearance rejected');
         setComments('');
@@ -95,253 +144,420 @@ export default function RegistrarAdminDashboard({ adminId, onSignOut, onOpenSett
         fetchPendingRequests();
       }
     } catch (error) {
-      console.error('Error rejecting:', error);
       toast.error(error.response?.data?.error || 'Failed to reject');
     } finally {
       setActionLoading(false);
     }
   };
 
+  // ── Theme: Slate/Charcoal (Registrar = authoritative, final) ──
+  const theme = {
+    name: 'Registrar', abbrev: 'RG', dashboardTitle: 'Registrar Dashboard',
+    sidebarGradient: 'bg-gradient-to-b from-slate-700 to-slate-900 border-r border-slate-600/20',
+    sidebarActive: 'bg-white text-slate-800 shadow-slate-900/20',
+    accentGradient: 'bg-gradient-to-br from-slate-600 to-slate-800',
+    accentShadow: 'shadow-slate-500/20',
+    dotColor: 'bg-slate-400',
+    bg: 'bg-gradient-to-br from-slate-50 via-gray-50/30 to-white',
+    glow1: 'bg-slate-400/8', glow2: 'bg-gray-400/5',
+    topbar: 'bg-white/80 border-b border-slate-200',
+    topbarText: 'text-gray-900', topbarSub: 'text-gray-500',
+    topbarBtn: 'hover:bg-slate-50', topbarIcon: 'text-gray-500',
+    topbarDivider: 'bg-gray-200',
+    logoutBtn: 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white',
+  };
+
   const menuItems = [
-    { id: 'pending', label: 'Final Approvals', icon: '🎓', count: requests.length },
+    { id: 'pending', label: 'Final Approvals', icon: <ShieldCheckIcon className="w-5 h-5" />, count: requests.length },
+    { id: 'accounts', label: 'Pending Accounts', icon: <UsersIcon className="w-5 h-5" />, count: pendingAccounts.length },
   ];
 
   return (
-    <div className="min-h-screen bg-[#020617]">
-      {/* Background Effects */}
-      <div className="fixed inset-0 z-0">
-        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-indigo-600/20 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-violet-600/10 rounded-full blur-[120px]" />
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.02]" />
-      </div>
+    <DashboardLayout
+      theme={theme}
+      menuItems={menuItems}
+      activeView={activeView}
+      setActiveView={setActiveView}
+      userInfo={{ name: 'Registrar', subtitle: 'Registrar Admin' }}
+      onSignOut={onSignOut}
+      onOpenSettings={onOpenSettings}
+    >
+      <div className="max-w-5xl mx-auto space-y-6">
 
-      {/* SIDEBAR */}
-      <div className={`${sidebarOpen ? 'w-64' : 'w-20'} fixed left-0 top-0 h-screen bg-gradient-to-b from-slate-900 to-slate-950 border-r border-white/5 text-white flex flex-col transition-all duration-300 shadow-2xl z-50`}>
-        <div className="h-16 flex items-center justify-between px-4 border-b border-white/10">
-          {sidebarOpen && (
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg">
-                R
+        {/* ═══════════ FINAL APPROVALS VIEW ═══════════ */}
+        {activeView === 'pending' && (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-3xl font-bold text-gray-900">Registrar Final Approval</h2>
+                <p className="text-gray-500 mt-1">Final validation and certificate generation for graduating students</p>
               </div>
-              <span className="font-bold text-white">Registrar</span>
-            </div>
-          )}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-          >
-            <span className="text-white text-lg">{sidebarOpen ? '←' : '→'}</span>
-          </button>
-        </div>
-
-        <nav className="flex-1 p-4 space-y-2">
-          {menuItems.map((item) => (
-            <div
-              key={item.id}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/25 font-semibold"
-            >
-              <span className="text-xl">{item.icon}</span>
-              {sidebarOpen && (
-                <div className="flex-1 flex items-center justify-between">
-                  <span className="font-medium">{item.label}</span>
-                  {item.count > 0 && (
-                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-white/20">
-                      {item.count}
-                    </span>
-                  )}
+              <div className="flex items-center gap-3">
+                <div className="px-4 py-2 rounded-xl border text-slate-600 bg-slate-50 border-slate-200 text-center">
+                  <div className="text-xl font-bold">{requests.length}</div>
+                  <div className="text-xs font-medium">Awaiting Final</div>
                 </div>
-              )}
-            </div>
-          ))}
-        </nav>
-
-        <div className="p-4 border-t border-white/10">
-          {sidebarOpen && (
-            <div className="text-xs text-white/50">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse"></span>
-                <span>System Online</span>
               </div>
-              <div>ISU Clearance v2.0</div>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* MAIN CONTENT */}
-      <div className={`${sidebarOpen ? 'ml-64' : 'ml-20'} transition-all duration-300`}>
-        {/* TOPBAR */}
-        <div className="h-16 bg-slate-900/40 backdrop-blur-xl border-b border-white/5 flex items-center justify-between px-6 shadow-lg sticky top-0 z-40">
-          <div>
-            <h1 className="text-xl font-bold text-white">Registrar Dashboard</h1>
-            <p className="text-sm text-slate-400">Isabela State University Campus</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={onOpenSettings}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <span className="text-xl">⚙️</span>
-            </button>
-            <button
-              onClick={onSignOut}
-              className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-full hover:bg-red-500 hover:text-white font-medium transition-all"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
+            {loading ? (
+              <GlassCard className="p-12">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-12 h-12 border-4 border-slate-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-gray-500">Loading pending approvals...</p>
+                </div>
+              </GlassCard>
+            ) : requests.length === 0 ? (
+              <GlassCard className="p-12 text-center">
+                <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }}
+                  className="w-20 h-20 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-5">
+                  <InboxStackIcon className="w-10 h-10 text-slate-400" />
+                </motion.div>
+                <h3 className="text-xl font-bold mb-2 text-gray-900">No Pending Final Approvals</h3>
+                <p className="text-gray-500">All registrar clearance requests have been processed.</p>
+              </GlassCard>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Request List */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Students Awaiting Final Approval</h3>
+                  {requests.map((req, idx) => (
+                    <motion.div
+                      key={req.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05 }}
+                    >
+                      <div
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${selectedRequest?.id === req.id
+                          ? 'border-slate-400 bg-slate-50/50 shadow-lg shadow-slate-500/10'
+                          : 'border-gray-100 bg-white/70 hover:border-slate-300 hover:shadow-md'
+                          }`}
+                        onClick={() => { setSelectedRequest(req); setComments(''); }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-slate-500/20">
+                            {req.student?.full_name?.charAt(0) || '?'}
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-bold text-sm text-gray-900">{req.student?.full_name || 'Unknown Student'}</h4>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-xs text-gray-500">{req.student?.student_number || ''}</p>
+                              <div className="flex items-center gap-1">
+                                {req.professors_status === 'approved' && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">Prof ✓</span>
+                                )}
+                                {req.library_status === 'approved' && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">Lib ✓</span>
+                                )}
+                                {req.cashier_status === 'approved' && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">Cash ✓</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <StatusBadge status="pending" />
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
 
-        {/* CONTENT */}
-        <div className="p-8 relative z-10">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-white mb-2">Final Approval & Certificate Generation</h2>
-            <p className="text-slate-400">Review students who have completed all previous stages</p>
-          </div>
-
-          {loading ? (
-            <GlassCard className="p-12 text-center">
-              <div className="animate-spin w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-              <p className="text-slate-400">Loading clearances...</p>
-            </GlassCard>
-          ) : requests.length === 0 ? (
-            <GlassCard className="p-12 text-center">
-              <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
-                <span className="text-4xl">🎓</span>
-              </div>
-              <p className="text-slate-400">No pending final approvals</p>
-            </GlassCard>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              {/* Request List */}
-              <div className="lg:col-span-7 space-y-4">
-                {requests.map((request, idx) => (
-                  <GlassCard
-                    key={request.id}
-                    onClick={() => setSelectedRequest(request)}
-                    delay={idx * 0.05}
-                    className="p-6"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-indigo-500/20">
-                          {request.student?.full_name?.charAt(0)}
+                {/* Detail Panel */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Final Review</h3>
+                  {selectedRequest ? (
+                    <GlassCard className="p-5">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                          {selectedRequest.student?.full_name?.charAt(0) || '?'}
                         </div>
                         <div>
-                          <h3 className="text-lg font-bold text-white">{request.student?.full_name}</h3>
-                          <p className="text-sm text-slate-400">
-                            {request.student?.student_number} • {request.student?.course_year}
-                          </p>
-                          <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
-                            <span>✓</span> All stages approved
-                          </p>
+                          <h3 className="font-bold text-gray-900">{selectedRequest.student?.full_name}</h3>
+                          <p className="text-sm text-gray-500">{selectedRequest.student?.student_number}</p>
                         </div>
                       </div>
-                      <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-white/40 group-hover:bg-white group-hover:text-black transition-all">
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
-                    </div>
-                  </GlassCard>
-                ))}
-              </div>
 
-              {/* Details Panel */}
-              <div className="lg:col-span-5">
-                <GlassCard className="sticky top-24">
-                  {!selectedRequest ? (
-                    <div className="p-12 text-center">
-                      <div className="w-32 h-32 rounded-full bg-gradient-to-tr from-white/5 to-transparent border border-white/5 flex items-center justify-center mx-auto mb-6">
-                        <svg className="w-12 h-12 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                        </svg>
+                      <div className="mb-4 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                        <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <DocumentCheckIcon className="w-3.5 h-3.5" />
+                          Clearance Status
+                        </h4>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { label: 'Professors', status: selectedRequest.professors_status },
+                            { label: 'Library', status: selectedRequest.library_status },
+                            { label: 'Cashier', status: selectedRequest.cashier_status },
+                          ].map(item => (
+                            <div key={item.label} className="text-center p-2 rounded-lg bg-white">
+                              <div className="text-xs text-gray-500 mb-0.5">{item.label}</div>
+                              <StatusBadge status={item.status || 'pending'} />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <h3 className="text-xl font-bold text-white mb-2">Final Approval</h3>
-                      <p className="text-slate-400 text-sm">Select a student for final approval and certificate generation</p>
-                    </div>
+
+                      {selectedRequest.id && (
+                        <div className="mb-4">
+                          <RequestComments requestId={selectedRequest.id} userRole="registrar_admin" userId={adminId} />
+                        </div>
+                      )}
+
+                      <div className="mb-4">
+                        <label className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                          <ChatBubbleIcon className="w-4 h-4 text-gray-400" />
+                          Final Comments
+                        </label>
+                        <textarea
+                          placeholder="Comments (required for rejection)..."
+                          value={comments}
+                          onChange={(e) => setComments(e.target.value)}
+                          rows={3}
+                          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/60 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all resize-none"
+                        />
+                      </div>
+
+                      <div className="flex gap-3">
+                        <motion.button
+                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                          onClick={handleApprove}
+                          disabled={actionLoading}
+                          className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold shadow-lg shadow-green-500/20 disabled:opacity-50 transition-all text-sm"
+                        >
+                          <ShieldCheckIcon className="w-4 h-4" />
+                          Approve & Generate Certificate
+                        </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                          onClick={handleReject}
+                          disabled={actionLoading}
+                          className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl font-semibold shadow-lg shadow-red-500/20 disabled:opacity-50 transition-all text-sm"
+                        >
+                          <XMarkIcon className="w-4 h-4" />
+                          Reject
+                        </motion.button>
+                      </div>
+                    </GlassCard>
                   ) : (
-                    <div className="flex flex-col h-full">
-                      <div className="p-6 border-b border-white/5 bg-gradient-to-b from-indigo-500/10 to-transparent">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h2 className="text-xl font-bold text-white">{selectedRequest.student?.full_name}</h2>
-                            <p className="text-indigo-300 text-sm">{selectedRequest.student?.student_number}</p>
-                          </div>
-                          <button
-                            onClick={() => setSelectedRequest(null)}
-                            className="p-2 hover:bg-white/10 rounded-full transition-colors"
-                          >
-                            <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
+                    <GlassCard className="p-8 text-center">
+                      <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
+                        <ShieldCheckIcon className="w-8 h-8 text-slate-400" />
+                      </div>
+                      <p className="text-gray-500 text-sm">Select a student for final review</p>
+                    </GlassCard>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
-                        <div className="space-y-2">
-                          <div className="p-3 rounded-xl bg-black/20 border border-white/5">
-                            <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Course/Year</p>
-                            <p className="text-xs font-medium text-white">{selectedRequest.student?.course_year}</p>
+        {/* ═══════════ PENDING ACCOUNTS VIEW ═══════════ */}
+        {activeView === 'accounts' && (
+          <>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-3xl font-bold text-gray-900">Pending Account Verifications</h2>
+                <p className="text-gray-500 mt-1">Review and approve student accounts with low face verification scores</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  onClick={fetchPendingAccounts}
+                  className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all"
+                >
+                  Refresh
+                </motion.button>
+                <div className="px-4 py-2 rounded-xl border text-amber-600 bg-amber-50 border-amber-200 text-center">
+                  <div className="text-xl font-bold">{pendingAccounts.length}</div>
+                  <div className="text-xs font-medium">Pending</div>
+                </div>
+              </div>
+            </div>
+
+            {accountsLoading ? (
+              <GlassCard className="p-12">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-12 h-12 border-4 border-slate-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-gray-500">Loading pending accounts...</p>
+                </div>
+              </GlassCard>
+            ) : pendingAccounts.length === 0 ? (
+              <GlassCard className="p-12 text-center">
+                <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }}
+                  className="w-20 h-20 rounded-2xl bg-green-50 flex items-center justify-center mx-auto mb-5">
+                  <CheckIcon className="w-10 h-10 text-green-400" />
+                </motion.div>
+                <h3 className="text-xl font-bold mb-2 text-gray-900">All Accounts Verified</h3>
+                <p className="text-gray-500">No pending account verifications at this time.</p>
+              </GlassCard>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Account List */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Accounts Awaiting Review</h3>
+                  {pendingAccounts.map((account, idx) => (
+                    <motion.div
+                      key={account.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05 }}
+                    >
+                      <div
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${selectedAccount?.id === account.id
+                          ? 'border-amber-400 bg-amber-50/50 shadow-lg shadow-amber-500/10'
+                          : 'border-gray-100 bg-white/70 hover:border-amber-300 hover:shadow-md'
+                          }`}
+                        onClick={() => { setSelectedAccount(account); setRejectReason(''); }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-amber-500/20">
+                            {account.full_name?.charAt(0) || '?'}
                           </div>
-                          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                            <p className="text-[10px] font-bold text-emerald-400 uppercase mb-1">Clearance Status</p>
-                            <div className="space-y-1">
-                              <p className="text-xs text-emerald-300">✓ Professors Approved</p>
-                              <p className="text-xs text-emerald-300">✓ Library Approved</p>
-                              <p className="text-xs text-emerald-300">✓ Cashier Approved</p>
+                          <div className="flex-1">
+                            <h4 className="font-bold text-sm text-gray-900">{account.full_name || 'Unknown'}</h4>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-xs text-gray-500">{account.student_number || 'No student #'}</p>
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${(account.face_similarity || 0) >= 70
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : 'bg-red-100 text-red-700'
+                                }`}>
+                                {(account.face_similarity || 0).toFixed(0)}% match
+                              </span>
+                            </div>
+                          </div>
+                          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                            Pending
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* Account Detail Panel */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Account Review</h3>
+                  {selectedAccount ? (
+                    <GlassCard className="p-5">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                          {selectedAccount.full_name?.charAt(0) || '?'}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-900">{selectedAccount.full_name}</h3>
+                          <p className="text-sm text-gray-500">{selectedAccount.student_number}</p>
+                        </div>
+                      </div>
+
+                      {/* Account Details */}
+                      <div className="mb-4 space-y-3">
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Account Information</h4>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Course & Year</span>
+                              <span className="font-medium text-gray-900">{selectedAccount.course_year || 'N/A'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Face Verified</span>
+                              <span className={`font-medium ${selectedAccount.face_verified ? 'text-green-600' : 'text-red-600'}`}>
+                                {selectedAccount.face_verified ? 'Yes' : 'No'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Face Similarity</span>
+                              <span className={`font-bold ${(selectedAccount.face_similarity || 0) >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                {(selectedAccount.face_similarity || 0).toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Registered</span>
+                              <span className="font-medium text-gray-900">
+                                {selectedAccount.created_at ? new Date(selectedAccount.created_at).toLocaleDateString() : 'N/A'}
+                              </span>
                             </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                        <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
-                          <p className="text-sm text-indigo-300 mb-2">
-                            <strong>⚠️ Final Approval:</strong>
-                          </p>
-                          <p className="text-xs text-slate-300">
-                            Approving this clearance will mark it as COMPLETED and automatically generate a graduation certificate for the student.
+                        {/* Similarity score bar */}
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Face Match Score</h4>
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${(selectedAccount.face_similarity || 0) >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+                                  }`}
+                                style={{ width: `${Math.min(selectedAccount.face_similarity || 0, 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-sm font-bold text-gray-700 min-w-[50px] text-right">
+                              {(selectedAccount.face_similarity || 0).toFixed(1)}%
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {(selectedAccount.face_similarity || 0) >= 90
+                              ? 'Auto-approved threshold met'
+                              : (selectedAccount.face_similarity || 0) >= 70
+                                ? 'Moderate match — manual review recommended'
+                                : 'Low match — verify identity carefully'
+                            }
                           </p>
                         </div>
-
-                        <div>
-                          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                            Comments (Optional)
-                          </label>
-                          <textarea
-                            value={comments}
-                            onChange={(e) => setComments(e.target.value)}
-                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none"
-                            rows="4"
-                            placeholder="Add any final comments or notes..."
-                          />
-                        </div>
                       </div>
 
-                      <div className="p-6 border-t border-white/5 bg-black/20 space-y-3">
-                        <button
-                          onClick={handleApprove}
-                          disabled={actionLoading}
-                          className="w-full h-12 px-6 rounded-full font-bold text-sm tracking-wide flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:brightness-110 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {actionLoading ? 'Processing...' : '✓ Final Approval & Generate Certificate'}
-                        </button>
-                        <button
-                          onClick={handleReject}
-                          disabled={actionLoading}
-                          className="w-full h-12 px-6 rounded-full font-bold text-sm tracking-wide flex items-center justify-center gap-2 bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {actionLoading ? 'Processing...' : '✗ Reject Clearance'}
-                        </button>
+                      {/* Reject reason input */}
+                      <div className="mb-4">
+                        <label className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                          <ChatBubbleIcon className="w-4 h-4 text-gray-400" />
+                          Rejection Reason (required to reject)
+                        </label>
+                        <textarea
+                          placeholder="Provide reason if rejecting..."
+                          value={rejectReason}
+                          onChange={(e) => setRejectReason(e.target.value)}
+                          rows={2}
+                          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/60 text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all resize-none"
+                        />
                       </div>
-                    </div>
+
+                      <div className="flex gap-3">
+                        <motion.button
+                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                          onClick={() => handleApproveAccount(selectedAccount.id)}
+                          disabled={actionLoading}
+                          className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold shadow-lg shadow-green-500/20 disabled:opacity-50 transition-all text-sm"
+                        >
+                          <CheckIcon className="w-4 h-4" />
+                          Approve Account
+                        </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                          onClick={() => handleRejectAccount(selectedAccount.id)}
+                          disabled={actionLoading}
+                          className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl font-semibold shadow-lg shadow-red-500/20 disabled:opacity-50 transition-all text-sm"
+                        >
+                          <XMarkIcon className="w-4 h-4" />
+                          Reject Account
+                        </motion.button>
+                      </div>
+                    </GlassCard>
+                  ) : (
+                    <GlassCard className="p-8 text-center">
+                      <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
+                        <UsersIcon className="w-8 h-8 text-amber-400" />
+                      </div>
+                      <p className="text-gray-500 text-sm">Select an account to review</p>
+                    </GlassCard>
                   )}
-                </GlassCard>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </>
+        )}
+
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

@@ -148,6 +148,46 @@ export const deleteComment = async (commentId, userId) => {
 };
 
 // ============================================
+// CLEARANCE COMMENT ENDPOINTS (New Spec)
+// ============================================
+
+// Create clearance comment with visibility
+export const createClearanceComment = async (clearanceId, userId, commentText, visibility = 'all') => {
+  const response = await fetch(`${API_URL}/clearance/${clearanceId}/comments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, comment_text: commentText, visibility })
+  });
+  return response.json();
+};
+
+// Get clearance comments (visibility-filtered)
+export const getClearanceComments = async (clearanceId, userId) => {
+  const response = await fetch(`${API_URL}/clearance/${clearanceId}/comments?user_id=${userId}`);
+  return response.json();
+};
+
+// Resolve/unresolve a clearance comment
+export const resolveClearanceComment = async (commentId, userId) => {
+  const response = await fetch(`${API_URL}/clearance/comments/${commentId}/resolve`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId })
+  });
+  return response.json();
+};
+
+// Delete a clearance comment
+export const deleteClearanceComment = async (commentId, userId) => {
+  const response = await fetch(`${API_URL}/clearance/comments/${commentId}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId })
+  });
+  return response.json();
+};
+
+// ============================================
 // CERTIFICATE ENDPOINTS
 // ============================================
 

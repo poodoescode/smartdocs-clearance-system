@@ -111,7 +111,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
   const [signUpData, setSignUpData] = useState({
     firstName: '',
     lastName: '',
-    role: 'library_admin', // Default admin role
+    role: selectedRole === 'professor' ? 'professor' : 'library_admin',
     studentNumber: '',
     course: '',
     yearLevel: ''
@@ -162,7 +162,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
       return 'Passwords do not match.';
     }
 
-    if (field === 'adminSecretCode' && selectedRole === 'admin' && value.length < 8) {
+    if (field === 'adminSecretCode' && (selectedRole === 'admin' || selectedRole === 'professor') && value.length < 8) {
       return 'Invalid secret code format.';
     }
 
@@ -182,9 +182,9 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
       if (!recaptchaToken) throw new Error('Please verify reCAPTCHA');
 
       // Admin-specific validation
-      if (selectedRole === 'admin') {
+      if (selectedRole === 'admin' || selectedRole === 'professor') {
         if (!adminSecretCode || adminSecretCode.trim().length < 8) {
-          throw new Error('Valid admin secret code is required');
+          throw new Error('Valid secret code is required');
         }
       }
 
@@ -197,7 +197,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
           firstName: signUpData.firstName.trim(),
           lastName: signUpData.lastName.trim(),
           role: signUpData.role,
-          adminSecretCode: selectedRole === 'admin' ? adminSecretCode : null,
+          adminSecretCode: (selectedRole === 'admin' || selectedRole === 'professor') ? adminSecretCode : null,
           studentNumber: signUpData.role === 'student' ? signUpData.studentNumber : null,
           courseYear: signUpData.role === 'student' ? `${signUpData.course} - ${signUpData.yearLevel}` : null,
           recaptchaToken: recaptchaToken
@@ -207,14 +207,14 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
       const result = await response.json();
       if (!result.success) throw new Error(result.error || 'Signup failed');
 
-      toast.success('Admin account created! Sign in now.');
+      toast.success(selectedRole === 'professor' ? 'Professor account created! Sign in now.' : 'Admin account created! Sign in now.');
 
       // Reset form
       setEmail('');
       setPassword('');
       setConfirmPassword('');
       setAdminSecretCode('');
-      setSignUpData({ firstName: '', lastName: '', role: 'library_admin', studentNumber: '', course: '', yearLevel: '' });
+      setSignUpData({ firstName: '', lastName: '', role: selectedRole === 'professor' ? 'professor' : 'library_admin', studentNumber: '', course: '', yearLevel: '' });
       setRecaptchaToken(null);
       recaptchaRef.current?.reset();
       setTouched({});
@@ -315,27 +315,30 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
         </AnimatePresence>
       </div>
 
-      <div className="relative z-20">
-        <label className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Admin Role <span className="text-red-500">*</span></label>
-        <SpotlightBorder isDark={isDark}>
-          <CustomSelect
-            label=""
-            value={signUpData.role}
-            onChange={(val) => setSignUpData({ ...signUpData, role: val })}
-            isDark={isDark}
-            options={[
-              { value: 'library_admin', label: 'Library Admin' },
-              { value: 'cashier_admin', label: 'Cashier Admin' },
-              { value: 'registrar_admin', label: 'Registrar Admin' }
-            ]}
-          />
-        </SpotlightBorder>
-      </div>
+      {/* Role dropdown - only show for admin, not professor */}
+      {selectedRole !== 'professor' && (
+        <div className="relative z-20">
+          <label className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Admin Role <span className="text-red-500">*</span></label>
+          <SpotlightBorder isDark={isDark}>
+            <CustomSelect
+              label=""
+              value={signUpData.role}
+              onChange={(val) => setSignUpData({ ...signUpData, role: val })}
+              isDark={isDark}
+              options={[
+                { value: 'library_admin', label: 'Library Admin' },
+                { value: 'cashier_admin', label: 'Cashier Admin' },
+                { value: 'registrar_admin', label: 'Registrar Admin' }
+              ]}
+            />
+          </SpotlightBorder>
+        </div>
+      )}
 
       {/* Admin Secret Code Field */}
       <div>
         <label className={`block text-sm font-bold mb-1.5 ml-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-          Admin Secret Code <span className="text-red-500">*</span>
+          {selectedRole === 'professor' ? 'Professor' : 'Admin'} Secret Code <span className="text-red-500">*</span>
         </label>
         <SpotlightBorder isDark={isDark} error={getFieldError('adminSecretCode', adminSecretCode)}>
           <input
@@ -344,7 +347,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
             onChange={(e) => setAdminSecretCode(e.target.value)}
             onBlur={() => handleBlur('adminSecretCode')}
             required
-            placeholder="Enter admin secret code"
+            placeholder={selectedRole === 'professor' ? 'Enter professor secret code' : 'Enter admin secret code'}
             className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-green-500 placeholder:text-slate-600' : 'bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500 placeholder:text-gray-400'} ${getFieldError('adminSecretCode', adminSecretCode) ? '!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900' : ''}`}
           />
         </SpotlightBorder>
@@ -362,7 +365,7 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
           )}
         </AnimatePresence>
         <p className={`text-xs mt-1.5 ml-1 ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
-          Contact your supervisor to obtain the admin secret code
+          {selectedRole === 'professor' ? 'Contact your department to obtain the professor secret code' : 'Contact your supervisor to obtain the admin secret code'}
         </p>
       </div>
 
@@ -476,9 +479,10 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
             />
           </SpotlightBorder>
           <div className="absolute right-12 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
-            <AnimatePresence>
-              {password && confirmPassword && password === confirmPassword && (
+            <AnimatePresence mode="wait">
+              {password && confirmPassword && password === confirmPassword ? (
                 <motion.div
+                  key="pw-match"
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0, opacity: 0 }}
@@ -489,7 +493,20 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </motion.div>
-              )}
+              ) : password && confirmPassword && password !== confirmPassword ? (
+                <motion.div
+                  key="pw-mismatch"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                  className="text-red-500"
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </motion.div>
+              ) : null}
             </AnimatePresence>
           </div>
           <button
@@ -538,9 +555,10 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
             />
           </SpotlightBorder>
           <div className="absolute right-12 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
-            <AnimatePresence>
-              {password && confirmPassword && password === confirmPassword && (
+            <AnimatePresence mode="wait">
+              {password && confirmPassword && password === confirmPassword ? (
                 <motion.div
+                  key="cp-match"
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0, opacity: 0 }}
@@ -551,7 +569,20 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </motion.div>
-              )}
+              ) : password && confirmPassword && password !== confirmPassword ? (
+                <motion.div
+                  key="cp-mismatch"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                  className="text-red-500"
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </motion.div>
+              ) : null}
             </AnimatePresence>
           </div>
           <button
@@ -631,6 +662,6 @@ export default function SignupForm({ onSwitchMode, isDark, selectedRole }) {
           <span className="font-bold text-sm">Discord</span>
         </button>
       </div>
-    </form>
+    </form >
   );
 }

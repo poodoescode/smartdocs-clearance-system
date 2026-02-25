@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from './lib/supabase';
 import StudentDashboardGraduation from './pages/StudentDashboardGraduation';
 import AdminDashboard from './pages/AdminDashboard';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import ProfessorDashboard from './pages/ProfessorDashboard';
 import LibraryAdminDashboard from './pages/LibraryAdminDashboard';
 import CashierAdminDashboard from './pages/CashierAdminDashboard';
@@ -94,6 +93,8 @@ function App() {
     setSelectedRole(null);
     sessionStorage.removeItem('selectedRole');
     sessionStorage.removeItem('authMode'); // Clear auth mode when going back
+    sessionStorage.removeItem('signupStep'); // Clear signup progress
+    sessionStorage.removeItem('signupFormData');
     setAppMode('roleSelection');
     sessionStorage.setItem('currentAppMode', 'roleSelection');
   };
@@ -108,20 +109,24 @@ function App() {
 
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
+        // Set app mode immediately so UI transitions fast
+        setAppMode('app');
+        sessionStorage.setItem('currentAppMode', 'app');
         await fetchProfile(session.user.id, isMounted);
-        await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', session.user.id);
+        // Update last_login in background (don't await)
+        supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', session.user.id);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);
         setSelectedRole(null);
-        
+
         // Clear all session storage except the loader flag
         const hasSeenLoader = sessionStorage.getItem('hasSeenLoader');
         sessionStorage.clear();
         if (hasSeenLoader) {
           sessionStorage.setItem('hasSeenLoader', 'true');
         }
-        
+
         // Reset to landing page
         setAppMode('landing');
         sessionStorage.setItem('currentAppMode', 'landing');
@@ -140,10 +145,15 @@ function App() {
       if (error && error.name !== 'AbortError') console.error('Error getting session:', error);
 
       if (isMounted && session?.user) {
+        // Active session found on refresh — restore user state
         setUser(session.user);
-        try {
-          await fetchProfile(session.user.id, isMounted);
-        } catch (e) { console.error(e); }
+        setAppMode('app');
+        sessionStorage.setItem('currentAppMode', 'app');
+        await fetchProfile(session.user.id, isMounted);
+      } else if (isMounted) {
+        // No active session — clear state
+        setUser(null);
+        setProfile(null);
       }
     } catch (error) {
       if (error.name !== 'AbortError') console.error(error);
@@ -159,15 +169,15 @@ function App() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, role, student_number, course_year, is_active')
+        .select('id, full_name, role, student_number, course_year, account_enabled')
         .eq('id', userId)
         .single()
-        .abortSignal(AbortSignal.timeout(3000));
+        .abortSignal(AbortSignal.timeout(5000));
 
       if (error) throw error;
       if (!isMounted) return;
       if (!data) throw new Error('No profile data');
-      if (!data.is_active) {
+      if (data.account_enabled === false) {
         toast.error('Account deactivated');
         await supabase.auth.signOut();
         return;
@@ -175,6 +185,7 @@ function App() {
       setProfile(data);
     } catch (error) {
       if (error.name !== 'AbortError') {
+        console.error('Profile fetch error:', error);
         toast.error('Failed to load profile');
         if (isMounted) {
           await supabase.auth.signOut();
@@ -199,7 +210,7 @@ function App() {
       localStorage.clear();
 
       // Sign out from Supabase
-      await supabase.auth.signOut({ scope: 'global' });
+      await supabase.auth.signOut();
 
       toast.success('Signed out successfully');
 
@@ -374,7 +385,13 @@ function App() {
                             <div className="mb-8 glass-card rounded-xl p-6 border-l-4 border-l-secondary-500">
                               <EnvironmentalImpact studentId={null} />
                             </div>
-                            <SuperAdminDashboard adminId={user.id} />
+                            <AdminDashboard
+                              adminId={user.id}
+                              adminInfo={profile}
+                              onSignOut={handleSignOut}
+                              onOpenSettings={() => setShowSettings(true)}
+                              isDarkMode={isDarkMode}
+                            />
                           </main>
                         </>
                       )}

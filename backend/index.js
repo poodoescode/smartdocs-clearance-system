@@ -38,13 +38,14 @@ app.use('/api/requests', requestRoutes);
 app.use('/api/auth', signupLimiter, authRoutes); // Apply rate limiting to all auth routes
 app.use('/api/documents', documentRoutes);
 app.use('/api/comments', commentRoutes);
+app.use('/api/clearance', commentRoutes); // NEW: Clearance comment system endpoints
 app.use('/api/certificates', certificateRoutes);
 app.use('/api/escalation', escalationRoutes);
 app.use('/api/graduation', graduationRoutes); // NEW: Graduation clearance endpoints
 app.use('/api/admin', adminAccountRoutes); // NEW: Admin account management endpoints
 
 app.get('/', (req, res) => {
-    res.send('Smart Clearance System backend running!');
+  res.send('Smart Clearance System backend running!');
 });
 
 // Note: Automatic escalation removed - use manual escalation via /api/escalation/check endpoint

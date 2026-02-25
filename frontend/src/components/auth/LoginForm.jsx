@@ -33,35 +33,10 @@ export default function LoginForm({ isDark }) {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      
-      // Check if account is enabled (for face verification)
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('account_enabled, verification_status, face_similarity')
-        .eq('id', data.user.id)
-        .single();
-      
-      if (profileError) {
-        console.error('Profile fetch error:', profileError);
-      }
-      
-      // If account is not enabled, sign out and show message
-      if (profile && profile.account_enabled === false) {
-        await supabase.auth.signOut();
-        
-        if (profile.verification_status === 'pending_review') {
-          throw new Error(`Account pending verification. Your face match was ${profile.face_similarity?.toFixed(1)}%. Admin will review your account.`);
-        } else if (profile.verification_status === 'rejected') {
-          throw new Error('Account rejected. Please contact administration.');
-        } else {
-          throw new Error('Account not enabled. Please contact administration.');
-        }
-      }
-      
       toast.success('Welcome back!');
-      // Auth state change will be picked up by App.jsx
+      // Auth state change in App.jsx handles profile fetch + account checks
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -81,7 +56,7 @@ export default function LoginForm({ isDark }) {
             onBlur={() => handleBlur('email')}
             required
             autoComplete="email"
-            className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-green-500' : 'bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500'} ${getFieldError('email', email) ? '!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900' : ''}`}
+            className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? 'bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500' : 'bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500 focus:ring-1 focus:ring-green-500'} ${getFieldError('email', email) ? '!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900' : ''}`}
           />
         </SpotlightBorder>
         <AnimatePresence>
@@ -115,7 +90,7 @@ export default function LoginForm({ isDark }) {
               onBlur={() => handleBlur('password')}
               required
               autoComplete="current-password"
-              className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-green-500' : 'bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-1 focus:ring-green-500'} ${getFieldError('password', password) ? '!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900' : ''}`}
+              className={`w-full border rounded-xl px-4 py-3 outline-none transition-all font-medium ${isDark ? 'bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500' : 'bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500 focus:ring-1 focus:ring-green-500'} ${getFieldError('password', password) ? '!border-red-500 focus:!border-red-500 !ring-red-500 bg-red-50 text-red-900' : ''}`}
             />
           </SpotlightBorder>
           <button

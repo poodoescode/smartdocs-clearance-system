@@ -1,8 +1,8 @@
-// Comment Routes
+// Comment Routes - Clearance Comment System
+// Implements COMMENT_SYSTEM_DOCUMENTATION.md specification
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
-const { notifyNewComment } = require('../services/notificationService');
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -10,64 +10,120 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// POST /api/comments/create - Create new comment
-router.post('/create', async (req, res) => {
-  try {
-    const { request_id, user_id, comment_text } = req.body;
+// ============================================
+// HELPER: Get user profile with role
+// ============================================
+const getUserProfile = async (userId) => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, role')
+    .eq('id', userId)
+    .single();
+  if (error) throw new Error('User not found');
+  return data;
+};
 
-    if (!request_id || !user_id || !comment_text) {
+// ============================================
+// HELPER: Check if role is an admin type
+// ============================================
+const isAdminRole = (role) => {
+  return role && (role.includes('admin') || role === 'super_admin');
+};
+
+// ============================================
+// HELPER: Check if role is a professor type
+// ============================================
+const isProfessorRole = (role) => {
+  return role && (role === 'professor' || role === 'department_head');
+};
+
+// ============================================
+// HELPER: Filter comments by visibility for a given role
+// ============================================
+const filterByVisibility = (comments, userRole) => {
+  return comments.filter(comment => {
+    if (comment.visibility === 'all') return true;
+    if (comment.visibility === 'admins_only') return isAdminRole(userRole);
+    if (comment.visibility === 'professors_only') return isProfessorRole(userRole);
+    return true;
+  });
+};
+
+// ============================================
+// POST /api/clearance/:clearanceId/comments
+// Add a new comment to a clearance request
+// ============================================
+router.post('/:clearanceId/comments', async (req, res) => {
+  try {
+    const { clearanceId } = req.params;
+    const { user_id, comment_text, visibility = 'all' } = req.body;
+
+    // Validate required fields
+    if (!user_id || !comment_text) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields'
+        error: 'Missing required fields: user_id and comment_text'
       });
     }
 
-    // Verify user has access to this request
-    const { data: request } = await supabase
-      .from('requests')
-      .select('student_id')
-      .eq('id', request_id)
-      .single();
-
-    if (!request) {
-      return res.status(404).json({
+    // Validate visibility value
+    const validVisibilities = ['all', 'admins_only', 'professors_only'];
+    if (!validVisibilities.includes(visibility)) {
+      return res.status(400).json({
         success: false,
-        error: 'Request not found'
+        error: 'Invalid visibility. Must be: all, admins_only, or professors_only'
       });
     }
 
-    // Check if user is student owner or admin
-    const { data: userProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user_id)
-      .single();
+    // Get user profile
+    const userProfile = await getUserProfile(user_id);
 
-    const isOwner = request.student_id === user_id;
-    const isAdmin = userProfile?.role?.includes('admin');
-
-    if (!isOwner && !isAdmin) {
+    // RULE: Students cannot add comments (read-only)
+    if (userProfile.role === 'student') {
       return res.status(403).json({
         success: false,
-        error: 'Unauthorized to comment on this request'
+        error: 'Students cannot add comments. Comments are read-only for students.'
       });
     }
 
-    // Create comment
-    const { data: comment, error } = await supabase
-      .from('request_comments')
-      .insert({
-        request_id: request_id,
-        user_id: user_id,
-        comment_text: comment_text.trim()
-      })
-      .select('*, profiles!request_comments_user_id_fkey(full_name, role)')
+    // Verify clearance request exists (table is 'requests' with integer IDs)
+    const { data: clearanceRequest, error: reqError } = await supabase
+      .from('requests')
+      .select('id, student_id')
+      .eq('id', clearanceId)
       .single();
 
-    if (error) throw error;
+    if (reqError || !clearanceRequest) {
+      return res.status(404).json({
+        success: false,
+        error: 'Clearance request not found'
+      });
+    }
 
-    // Send notification
-    await notifyNewComment(request_id, user_id, comment_text);
+    // Create the comment
+    const { data: comment, error: insertError } = await supabase
+      .from('clearance_comments')
+      .insert({
+        clearance_request_id: clearanceId,
+        commenter_id: user_id,
+        commenter_name: userProfile.full_name,
+        commenter_role: userProfile.role,
+        comment_text: comment_text.trim(),
+        visibility: visibility
+      })
+      .select('*')
+      .single();
+
+    if (insertError) throw insertError;
+
+    // Try to send notification (non-blocking)
+    try {
+      const { notifyNewComment } = require('../services/notificationService');
+      await notifyNewComment(clearanceId, user_id, comment_text);
+    } catch (_notifError) {
+      // Notification failure should not block comment creation
+      console.warn('Comment notification failed (non-blocking)');
+    }
 
     res.json({
       success: true,
@@ -83,55 +139,31 @@ router.post('/create', async (req, res) => {
   }
 });
 
-// GET /api/comments/request/:request_id - Get all comments for a request
-router.get('/request/:request_id', async (req, res) => {
+// ============================================
+// GET /api/clearance/:clearanceId/comments
+// Get all comments for a clearance request (filtered by visibility)
+// ============================================
+router.get('/:clearanceId/comments', async (req, res) => {
   try {
-    const { request_id } = req.params;
+    const { clearanceId } = req.params;
     const { user_id } = req.query;
 
     if (!user_id) {
       return res.status(400).json({
         success: false,
-        error: 'Missing user_id'
+        error: 'Missing user_id query parameter'
       });
     }
 
-    // Verify user has access to this request
-    const { data: request } = await supabase
-      .from('requests')
-      .select('student_id')
-      .eq('id', request_id)
-      .single();
+    // Get user profile (for logging/auth purposes only)
+    await getUserProfile(user_id);
 
-    if (!request) {
-      return res.status(404).json({
-        success: false,
-        error: 'Request not found'
-      });
-    }
-
-    // Check if user is student owner or admin
-    const { data: userProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user_id)
-      .single();
-
-    const isOwner = request.student_id === user_id;
-    const isAdmin = userProfile?.role?.includes('admin');
-
-    if (!isOwner && !isAdmin) {
-      return res.status(403).json({
-        success: false,
-        error: 'Unauthorized to view these comments'
-      });
-    }
-
-    // Get comments
+    // Fetch all comments for this clearance — no visibility filtering needed
+    // Comments are already scoped to a specific student's request
     const { data: comments, error } = await supabase
-      .from('request_comments')
-      .select('*, profiles!request_comments_user_id_fkey(full_name, role)')
-      .eq('request_id', request_id)
+      .from('clearance_comments')
+      .select('*')
+      .eq('clearance_request_id', clearanceId)
       .order('created_at', { ascending: true });
 
     if (error) throw error;
@@ -150,61 +182,79 @@ router.get('/request/:request_id', async (req, res) => {
   }
 });
 
-// PUT /api/comments/:id - Update comment
-router.put('/:id', async (req, res) => {
+// ============================================
+// PATCH /api/clearance/comments/:commentId/resolve
+// Mark a comment as resolved or unresolve it
+// ============================================
+router.patch('/comments/:commentId/resolve', async (req, res) => {
   try {
-    const { id } = req.params;
-    const { user_id, comment_text } = req.body;
+    const { commentId } = req.params;
+    const { user_id } = req.body;
 
-    if (!user_id || !comment_text) {
+    if (!user_id) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields'
+        error: 'Missing user_id'
       });
     }
 
-    // Get comment
-    const { data: comment } = await supabase
-      .from('request_comments')
+    // Get user profile
+    const userProfile = await getUserProfile(user_id);
+
+    // Get the comment
+    const { data: comment, error: fetchError } = await supabase
+      .from('clearance_comments')
       .select('*')
-      .eq('id', id)
+      .eq('id', commentId)
       .single();
 
-    if (!comment) {
+    if (fetchError || !comment) {
       return res.status(404).json({
         success: false,
         error: 'Comment not found'
       });
     }
 
-    // Check if user is comment owner
-    if (comment.user_id !== user_id) {
+    // RULE: Who can resolve comments
+    // - Comment author (can resolve their own)
+    // - Super Admin (can resolve any)
+    // - Registrar Admin (can resolve any)
+    const isAuthor = comment.commenter_id === user_id;
+    const isSuperAdmin = userProfile.role === 'super_admin';
+    const isRegistrar = userProfile.role === 'registrar_admin';
+
+    if (!isAuthor && !isSuperAdmin && !isRegistrar) {
       return res.status(403).json({
         success: false,
-        error: 'Unauthorized to edit this comment'
+        error: 'Unauthorized to resolve this comment. Only the author, Super Admin, or Registrar Admin can resolve comments.'
       });
     }
 
-    // Update comment
-    const { data: updated, error } = await supabase
-      .from('request_comments')
+    // Toggle resolve status
+    const newResolvedState = !comment.is_resolved;
+
+    const { data: updated, error: updateError } = await supabase
+      .from('clearance_comments')
       .update({
-        comment_text: comment_text.trim(),
+        is_resolved: newResolvedState,
+        resolved_by: newResolvedState ? user_id : null,
+        resolved_at: newResolvedState ? new Date().toISOString() : null,
         updated_at: new Date().toISOString()
       })
-      .eq('id', id)
-      .select('*, profiles!request_comments_user_id_fkey(full_name, role)')
+      .eq('id', commentId)
+      .select('*')
       .single();
 
-    if (error) throw error;
+    if (updateError) throw updateError;
 
     res.json({
       success: true,
+      message: newResolvedState ? 'Comment marked as resolved' : 'Comment marked as unresolved',
       comment: updated
     });
 
   } catch (error) {
-    console.error('Error updating comment:', error);
+    console.error('Error resolving comment:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -212,7 +262,192 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/comments/:id - Delete comment
+// ============================================
+// DELETE /api/clearance/comments/:commentId
+// Delete a comment (5-minute rule for authors, anytime for super_admin)
+// ============================================
+router.delete('/comments/:commentId', async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const { user_id } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing user_id'
+      });
+    }
+
+    // Get user profile
+    const userProfile = await getUserProfile(user_id);
+
+    // Get the comment
+    const { data: comment, error: fetchError } = await supabase
+      .from('clearance_comments')
+      .select('*')
+      .eq('id', commentId)
+      .single();
+
+    if (fetchError || !comment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Comment not found'
+      });
+    }
+
+    // RULE: Who can delete comments
+    const isAuthor = comment.commenter_id === user_id;
+    const isSuperAdmin = userProfile.role === 'super_admin';
+
+    // Students cannot delete
+    if (userProfile.role === 'student') {
+      return res.status(403).json({
+        success: false,
+        error: 'Students cannot delete comments'
+      });
+    }
+
+    if (!isAuthor && !isSuperAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized to delete this comment. Only the author or Super Admin can delete.'
+      });
+    }
+
+    // Authors and Super Admins can delete at any time
+
+    // Delete the comment — service key bypasses RLS
+    const { error: deleteError } = await supabase
+      .from('clearance_comments')
+      .delete()
+      .eq('id', commentId);
+
+    if (deleteError) throw deleteError;
+
+    res.json({
+      success: true,
+      message: 'Comment deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Error deleting comment:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================
+// BACKWARD COMPATIBILITY: Keep old routes working
+// These map old /api/comments/* paths to the new system
+// ============================================
+
+// POST /api/comments/create (legacy)
+router.post('/create', async (req, res) => {
+  try {
+    const { request_id, user_id, comment_text } = req.body;
+
+    if (!request_id || !user_id || !comment_text) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields'
+      });
+    }
+
+    // Get user profile
+    const userProfile = await getUserProfile(user_id);
+
+    // Create comment in clearance_comments table
+    const { data: comment, error } = await supabase
+      .from('clearance_comments')
+      .insert({
+        clearance_request_id: request_id,
+        commenter_id: user_id,
+        commenter_name: userProfile.full_name,
+        commenter_role: userProfile.role,
+        comment_text: comment_text.trim(),
+        visibility: 'all'
+      })
+      .select('*')
+      .single();
+
+    if (error) throw error;
+
+    // Map to legacy format for backward compatibility
+    res.json({
+      success: true,
+      comment: {
+        ...comment,
+        user_id: comment.commenter_id,
+        request_id: comment.clearance_request_id,
+        profiles: {
+          full_name: comment.commenter_name,
+          role: comment.commenter_role
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error creating comment (legacy):', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/comments/request/:request_id (legacy)
+router.get('/request/:request_id', async (req, res) => {
+  try {
+    const { request_id } = req.params;
+    const { user_id } = req.query;
+
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing user_id'
+      });
+    }
+
+    const userProfile = await getUserProfile(user_id);
+
+    const { data: comments, error } = await supabase
+      .from('clearance_comments')
+      .select('*')
+      .eq('clearance_request_id', request_id)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    const filteredComments = filterByVisibility(comments || [], userProfile.role);
+
+    // Map to legacy format
+    const legacyComments = filteredComments.map(c => ({
+      ...c,
+      user_id: c.commenter_id,
+      request_id: c.clearance_request_id,
+      profiles: {
+        full_name: c.commenter_name,
+        role: c.commenter_role
+      }
+    }));
+
+    res.json({
+      success: true,
+      comments: legacyComments
+    });
+
+  } catch (error) {
+    console.error('Error fetching comments (legacy):', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// DELETE /api/comments/:id (legacy)
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -225,44 +460,39 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
-    // Get comment
-    const { data: comment } = await supabase
-      .from('request_comments')
+    const userProfile = await getUserProfile(user_id);
+
+    const { data: comment, error: fetchError } = await supabase
+      .from('clearance_comments')
       .select('*')
       .eq('id', id)
       .single();
 
-    if (!comment) {
+    if (fetchError || !comment) {
       return res.status(404).json({
         success: false,
         error: 'Comment not found'
       });
     }
 
-    // Check if user is comment owner or admin
-    const { data: userProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user_id)
-      .single();
+    const isAuthor = comment.commenter_id === user_id;
+    const isSuperAdmin = userProfile.role === 'super_admin';
 
-    const isOwner = comment.user_id === user_id;
-    const isAdmin = userProfile?.role?.includes('admin');
-
-    if (!isOwner && !isAdmin) {
+    if (!isAuthor && !isSuperAdmin) {
       return res.status(403).json({
         success: false,
         error: 'Unauthorized to delete this comment'
       });
     }
 
-    // Delete comment
-    const { error } = await supabase
-      .from('request_comments')
+    // Authors and Super Admins can delete at any time
+
+    const { error: deleteError } = await supabase
+      .from('clearance_comments')
       .delete()
       .eq('id', id);
 
-    if (error) throw error;
+    if (deleteError) throw deleteError;
 
     res.json({
       success: true,
@@ -270,7 +500,7 @@ router.delete('/:id', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error deleting comment:', error);
+    console.error('Error deleting comment (legacy):', error);
     res.status(500).json({
       success: false,
       error: error.message

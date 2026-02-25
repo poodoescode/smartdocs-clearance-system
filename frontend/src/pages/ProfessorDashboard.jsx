@@ -1,38 +1,27 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import RequestComments from '../components/features/RequestComments';
+import DashboardLayout, { GlassCard, StatusBadge } from '../components/ui/DashboardLayout';
+import {
+  ClockIcon, CheckCircleIcon, XCircleIcon, UserIcon,
+  CheckIcon, XMarkIcon, ChatBubbleIcon, InboxStackIcon
+} from '../components/ui/Icons';
 
 const API_URL = import.meta.env.VITE_API_URL;
-
-const GlassCard = ({ children, className = "", isDark = false }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-    className={`relative overflow-hidden rounded-3xl backdrop-blur-xl ${
-      isDark 
-        ? 'bg-slate-800/80 border border-white/10 shadow-xl shadow-black/20' 
-        : 'bg-white/80 border border-green-100 shadow-xl shadow-green-500/10'
-    } ${className}`}
-  >
-    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] pointer-events-none mix-blend-overlay" />
-    <div className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-gradient-to-br from-green-500/5 via-transparent to-transparent opacity-30 blur-3xl pointer-events-none" />
-    <div className="relative z-10 h-full">{children}</div>
-  </motion.div>
-);
 
 export default function ProfessorDashboard({ professorId, professorInfo, onSignOut, onOpenSettings, isDarkMode = false }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [comments, setComments] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeView, setActiveView] = useState('pending');
+  const [expandedStudent, setExpandedStudent] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [selectedRejectId, setSelectedRejectId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
-    document.title = "Professor Dashboard | ISU Clearance System";
+    document.title = "Professor Dashboard | ISU Clearance";
     fetchStudents();
   }, []);
 
@@ -40,12 +29,10 @@ export default function ProfessorDashboard({ professorId, professorInfo, onSignO
     setLoading(true);
     try {
       const response = await axios.get(`${API_URL}/graduation/professor/students/${professorId}`);
-      if (response.data.success) {
-        setStudents(response.data.approvals);
-      }
+      if (response.data.success) setStudents(response.data.approvals || []);
     } catch (error) {
       console.error('Error fetching students:', error);
-      toast.error('Failed to load students');
+      toast.error('Failed to load student data');
     } finally {
       setLoading(false);
     }
@@ -56,47 +43,39 @@ export default function ProfessorDashboard({ professorId, professorInfo, onSignO
     try {
       const response = await axios.post(`${API_URL}/graduation/professor/approve`, {
         approval_id: approvalId,
-        professor_id: professorId,
-        comments: comments.trim() || null
+        professor_id: professorId
       });
-
       if (response.data.success) {
-        toast.success('Student approved successfully!');
-        setComments('');
-        setSelectedStudent(null);
+        toast.success('Student approved successfully');
         fetchStudents();
       }
     } catch (error) {
-      console.error('Error approving student:', error);
-      toast.error(error.response?.data?.error || 'Failed to approve student');
+      toast.error('Failed to approve student');
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleReject = async (approvalId) => {
-    if (!comments.trim()) {
+    if (!rejectReason.trim()) {
       toast.error('Please provide a reason for rejection');
       return;
     }
-
     setActionLoading(true);
     try {
       const response = await axios.post(`${API_URL}/graduation/professor/reject`, {
         approval_id: approvalId,
         professor_id: professorId,
-        comments: comments.trim()
+        comments: rejectReason
       });
-
       if (response.data.success) {
-        toast.success('Student rejected with comments');
-        setComments('');
-        setSelectedStudent(null);
+        toast.success('Student rejected');
+        setRejectReason('');
+        setSelectedRejectId(null);
         fetchStudents();
       }
     } catch (error) {
-      console.error('Error rejecting student:', error);
-      toast.error(error.response?.data?.error || 'Failed to reject student');
+      toast.error('Failed to reject student');
     } finally {
       setActionLoading(false);
     }
@@ -106,282 +85,232 @@ export default function ProfessorDashboard({ professorId, professorInfo, onSignO
   const approvedStudents = students.filter(s => s.status === 'approved');
   const rejectedStudents = students.filter(s => s.status === 'rejected');
 
+  const displayStudents = activeView === 'pending' ? pendingStudents :
+    activeView === 'approved' ? approvedStudents : rejectedStudents;
+
+  // ── Theme: Blue/Indigo (unique for professors) ──
+  const theme = {
+    name: 'Professor Panel', abbrev: 'PP', dashboardTitle: 'Professor Dashboard',
+    sidebarGradient: 'bg-gradient-to-b from-sky-800 to-blue-900 border-r border-sky-700/20',
+    sidebarActive: 'bg-white text-sky-800 shadow-sky-900/20',
+    accentGradient: 'bg-gradient-to-br from-sky-600 to-blue-700',
+    accentShadow: 'shadow-sky-600/20',
+    dotColor: 'bg-sky-300',
+    bg: 'bg-gradient-to-br from-sky-50 via-blue-50/30 to-slate-50',
+    glow1: 'bg-sky-400/8', glow2: 'bg-blue-400/5',
+    topbar: 'bg-white/80 border-b border-sky-100',
+    topbarText: 'text-gray-900', topbarSub: 'text-gray-500',
+    topbarBtn: 'hover:bg-sky-50', topbarIcon: 'text-gray-500',
+    topbarDivider: 'bg-gray-200',
+    logoutBtn: 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white',
+  };
+
   const menuItems = [
-    { id: 'pending', label: 'Pending Approvals', icon: '⏳', count: pendingStudents.length },
-    { id: 'approved', label: 'Approved', icon: '✅', count: approvedStudents.length },
-    { id: 'rejected', label: 'Rejected', icon: '❌', count: rejectedStudents.length },
+    { id: 'pending', label: 'Pending Approvals', icon: <ClockIcon className="w-5 h-5" />, count: pendingStudents.length },
+    { id: 'approved', label: 'Approved', icon: <CheckCircleIcon className="w-5 h-5" />, count: approvedStudents.length },
+    { id: 'rejected', label: 'Rejected', icon: <XCircleIcon className="w-5 h-5" />, count: rejectedStudents.length },
   ];
 
-  const displayStudents = activeView === 'pending' ? pendingStudents : 
-                          activeView === 'approved' ? approvedStudents : rejectedStudents;
-
   return (
-    <div className={`flex h-screen ${isDarkMode ? 'bg-slate-900' : 'bg-gradient-to-br from-green-50 via-emerald-50/30 to-white'}`}>
-      {/* Background Effects */}
-      {!isDarkMode && (
-        <div className="fixed inset-0 z-0">
-          <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-green-400/10 rounded-full blur-[120px] animate-pulse" />
-          <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-emerald-400/5 rounded-full blur-[120px]" />
-          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.02]" />
-        </div>
-      )}
-
-      {/* SIDEBAR */}
-      <div className={`${sidebarOpen ? 'w-64' : 'w-20'} ${isDarkMode ? 'bg-gradient-to-b from-slate-800 to-slate-900 border-r border-white/10' : 'bg-gradient-to-b from-green-600 to-emerald-700 border-r border-green-500/20'} text-white flex flex-col transition-all duration-300 shadow-2xl relative z-10`}>
-        {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-white/10">
-          {sidebarOpen && (
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-white to-green-50 rounded-lg flex items-center justify-center text-green-600 font-bold shadow-lg">
-                P
-              </div>
-              <span className="font-bold text-white">Professor</span>
-            </div>
-          )}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-          >
-            <span className="text-white text-lg">{sidebarOpen ? '←' : '→'}</span>
-          </button>
-        </div>
-
-        {/* Menu */}
-        <nav className="flex-1 p-4 space-y-2">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveView(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                activeView === item.id
-                  ? 'bg-white text-green-600 shadow-lg shadow-green-900/20 font-semibold'
-                  : 'text-white/80 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <span className="text-xl">{item.icon}</span>
-              {sidebarOpen && (
-                <div className="flex-1 flex items-center justify-between">
-                  <span className="font-medium">{item.label}</span>
-                  {item.count > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                      activeView === item.id ? 'bg-green-100 text-green-700' : 'bg-white/20'
-                    }`}>
-                      {item.count}
-                    </span>
-                  )}
-                </div>
-              )}
-            </button>
-          ))}
-        </nav>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-white/10">
-          {sidebarOpen && (
-            <div className="text-xs text-white/70">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse"></span>
-                <span>System Online</span>
-              </div>
-              <div>ISU Clearance v2.0</div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* MAIN CONTENT */}
-      <div className="flex-1 flex flex-col overflow-hidden relative z-10">
-        {/* TOPBAR */}
-        <div className={`h-16 ${isDarkMode ? 'bg-slate-800/80 border-b border-white/10' : 'bg-white/80 border-b border-green-100'} backdrop-blur-xl flex items-center justify-between px-6 shadow-sm`}>
+    <DashboardLayout
+      theme={theme}
+      menuItems={menuItems}
+      activeView={activeView}
+      setActiveView={setActiveView}
+      userInfo={{ name: professorInfo?.full_name, subtitle: 'Professor' }}
+      onSignOut={onSignOut}
+      onOpenSettings={onOpenSettings}
+    >
+      <div className="max-w-5xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Professor Dashboard</h1>
-            <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>Isabela State University Campus</p>
+            <h2 className="text-3xl font-bold text-gray-900">
+              {activeView === 'pending' ? 'Pending Approvals' :
+                activeView === 'approved' ? 'Approved Students' : 'Rejected Students'}
+            </h2>
+            <p className="text-gray-500 mt-1">Review and manage student graduation clearance requests</p>
           </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={onOpenSettings}
-              className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-green-50'}`}
-              title="Settings"
-            >
-              <span className="text-xl">⚙️</span>
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{professorInfo?.full_name}</p>
-                <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>Professor</p>
+          <div className="flex items-center gap-3">
+            {/* Stats */}
+            {[
+              { label: 'Pending', value: pendingStudents.length, color: 'text-amber-600 bg-amber-50 border-amber-200' },
+              { label: 'Approved', value: approvedStudents.length, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+              { label: 'Rejected', value: rejectedStudents.length, color: 'text-red-600 bg-red-50 border-red-200' },
+            ].map(stat => (
+              <div key={stat.label} className={`px-3 py-2 rounded-xl border text-center ${stat.color}`}>
+                <div className="text-xl font-bold">{stat.value}</div>
+                <div className="text-xs font-medium">{stat.label}</div>
               </div>
-              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg">
-                {professorInfo?.full_name?.charAt(0)}
-              </div>
-            </div>
-            <button
-              onClick={onSignOut}
-              className="px-4 py-2 bg-red-500/10 text-red-600 border border-red-500/20 rounded-full hover:bg-red-500 hover:text-white font-medium transition-all"
-            >
-              Logout
-            </button>
+            ))}
           </div>
         </div>
 
-        {/* CONTENT AREA */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="mb-6">
-              <h2 className={`text-2xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                {activeView === 'pending' ? 'Pending Approvals' : 
-                 activeView === 'approved' ? 'Approved Students' : 'Rejected Students'}
-              </h2>
-              <p className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>
-                {activeView === 'pending' ? 'Review and approve graduation clearance requests' :
-                 activeView === 'approved' ? 'Students you have approved' :
-                 'Students you have rejected'}
-              </p>
-            </div>
-
-            {loading ? (
-              <GlassCard isDark={isDarkMode} className="p-12 text-center">
-                <div className="animate-spin w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                <p className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>Loading students...</p>
-              </GlassCard>
-            ) : displayStudents.length === 0 ? (
-              <GlassCard isDark={isDarkMode} className="p-12 text-center">
-                <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${isDarkMode ? 'bg-slate-700' : 'bg-green-50'}`}>
-                  <span className="text-4xl">📋</span>
-                </div>
-                <p className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>No students in this category</p>
-              </GlassCard>
-            ) : (
-              <div className="grid gap-4">
-                {displayStudents.map((approval) => (
-                  <GlassCard key={approval.id} isDark={isDarkMode} className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-4 flex-1">
-                        <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                          {approval.request?.student?.full_name?.charAt(0)}
-                        </div>
-                        <div className="flex-1">
-                          <h3 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                            {approval.request?.student?.full_name}
-                          </h3>
-                          <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
-                            {approval.request?.student?.student_number} • {approval.request?.student?.course_year}
-                          </p>
-                          <p className={`text-xs mt-1 ${isDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>
-                            Applied: {new Date(approval.request?.created_at).toLocaleDateString()}
-                          </p>
-                          {approval.comments && (
-                            <div className={`mt-2 p-3 rounded-lg ${isDarkMode ? 'bg-slate-700/50' : 'bg-gray-50'}`}>
-                              <p className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}><strong>Comments:</strong> {approval.comments}</p>
-                            </div>
-                          )}
-                          {approval.approved_at && (
-                            <p className="text-xs text-green-600 mt-2">
-                              ✓ Approved on {new Date(approval.approved_at).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {approval.status === 'pending' && (
-                        <button
-                          onClick={() => setSelectedStudent(approval)}
-                          className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium transition-all shadow-md"
-                        >
-                          Review
-                        </button>
-                      )}
-                      
-                      {approval.status === 'approved' && (
-                        <span className="px-4 py-2 bg-green-100 text-green-700 rounded-lg font-medium border border-green-200">
-                          ✓ Approved
-                        </span>
-                      )}
-                      
-                      {approval.status === 'rejected' && (
-                        <span className="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium border border-red-200">
-                          ✗ Rejected
-                        </span>
-                      )}
-                    </div>
-                  </GlassCard>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* REVIEW MODAL */}
-      {selectedStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <GlassCard isDark={isDarkMode} className="max-w-2xl w-full p-6">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Review Student</h2>
-                <p className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>{selectedStudent.request?.student?.full_name}</p>
-              </div>
-              <button
-                onClick={() => {
-                  setSelectedStudent(null);
-                  setComments('');
-                }}
-                className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-gray-100 text-gray-600'}`}
-              >
-                <span className="text-2xl">×</span>
-              </button>
-            </div>
-
-            <div className="space-y-4 mb-6">
-              <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-slate-700/50' : 'bg-gray-50'}`}>
-                <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>Student Number</p>
-                <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedStudent.request?.student?.student_number}</p>
-              </div>
-              <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-slate-700/50' : 'bg-gray-50'}`}>
-                <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>Course/Year</p>
-                <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedStudent.request?.student?.course_year}</p>
-              </div>
-              <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-slate-700/50' : 'bg-gray-50'}`}>
-                <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>Email</p>
-                <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{selectedStudent.request?.student?.email}</p>
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                Comments (Optional for approval, Required for rejection)
-              </label>
-              <textarea
-                value={comments}
-                onChange={(e) => setComments(e.target.value)}
-                className={`w-full px-4 py-3 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none ${
-                  isDarkMode 
-                    ? 'bg-slate-700/50 border border-white/10 text-white placeholder-slate-500' 
-                    : 'bg-white border border-gray-300 text-gray-900 placeholder-gray-400'
-                }`}
-                rows="4"
-                placeholder="Add any comments or feedback..."
-              />
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => handleApprove(selectedStudent.id)}
-                disabled={actionLoading}
-                className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-medium hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-green-500/25 transition-all"
-              >
-                {actionLoading ? 'Processing...' : '✓ Approve Student'}
-              </button>
-              <button
-                onClick={() => handleReject(selectedStudent.id)}
-                disabled={actionLoading}
-                className="flex-1 py-3 bg-red-500/10 text-red-700 border border-red-500/20 rounded-lg font-medium hover:bg-red-500 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                {actionLoading ? 'Processing...' : '✗ Reject Student'}
-              </button>
+        {loading ? (
+          <GlassCard className="p-12">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm text-gray-500">Loading student data...</p>
             </div>
           </GlassCard>
-        </div>
-      )}
-    </div>
+        ) : displayStudents.length === 0 ? (
+          <GlassCard className="p-12 text-center">
+            <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }}
+              className="w-20 h-20 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-5">
+              <InboxStackIcon className="w-10 h-10 text-blue-400" />
+            </motion.div>
+            <h3 className="text-xl font-bold mb-2 text-gray-900">No {activeView} requests</h3>
+            <p className="text-gray-500">
+              {activeView === 'pending' ? 'All student requests have been processed.' :
+                `No ${activeView} students at this time.`}
+            </p>
+          </GlassCard>
+        ) : (
+          <div className="space-y-4">
+            {displayStudents.map((student, idx) => (
+              <motion.div
+                key={student.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.05, type: 'spring', stiffness: 200, damping: 25 }}
+              >
+                <GlassCard className="overflow-hidden">
+                  {/* Student Header */}
+                  <div
+                    className="p-5 cursor-pointer hover:bg-blue-50/30 transition-colors"
+                    onClick={() => setExpandedStudent(expandedStudent === student.id ? null : student.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/20">
+                          {student.request?.student?.full_name?.charAt(0) || '?'}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-900">{student.request?.student?.full_name || 'Unknown Student'}</h3>
+                          <p className="text-sm text-gray-500">{student.request?.student?.student_number || ''}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <StatusBadge status={student.status} />
+                        <motion.div
+                          animate={{ rotate: expandedStudent === student.id ? 180 : 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="text-gray-400"
+                        >
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                          </svg>
+                        </motion.div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded Content */}
+                  <AnimatePresence>
+                    {expandedStudent === student.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                        className="overflow-hidden"
+                      >
+                        <div className="px-5 pb-5 border-t border-gray-100">
+                          {/* Student Details */}
+                          <div className="mt-4 grid grid-cols-2 gap-3">
+                            <div className="p-3 rounded-lg bg-blue-50/50">
+                              <p className="text-xs text-gray-500 font-medium">Course & Year</p>
+                              <p className="text-sm font-semibold text-gray-900">{student.request?.student?.course_year || 'N/A'}</p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-blue-50/50">
+                              <p className="text-xs text-gray-500 font-medium">Email</p>
+                              <p className="text-sm font-semibold text-gray-900 truncate">{student.request?.student?.email || 'N/A'}</p>
+                            </div>
+                          </div>
+
+                          {/* Comments & Discussion Section (standalone - not tied to approve/reject) */}
+                          {student.request_id && (
+                            <div className="mt-4">
+                              <RequestComments requestId={student.request_id} userRole="professor" userId={professorId} />
+                            </div>
+                          )}
+
+                          {/* Action Buttons for Pending (separate from comments) */}
+                          {student.status === 'pending' && (
+                            <div className="mt-4 pt-4 border-t border-gray-100">
+                              <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">Decision</p>
+                              <div className="flex items-center gap-3">
+                                <motion.button
+                                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                                  onClick={() => handleApprove(student.id)}
+                                  disabled={actionLoading}
+                                  className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-medium shadow-lg shadow-green-500/20 hover:shadow-green-500/30 disabled:opacity-50 transition-all text-sm"
+                                >
+                                  <CheckIcon className="w-4 h-4" />
+                                  Approve
+                                </motion.button>
+
+                                {selectedRejectId === student.id ? (
+                                  <div className="flex-1 flex gap-3 items-start">
+                                    <textarea
+                                      placeholder="Reason for rejection (required)..."
+                                      value={rejectReason}
+                                      onChange={(e) => setRejectReason(e.target.value)}
+                                      rows={2}
+                                      className="flex-1 px-4 py-2.5 rounded-xl border border-red-200 bg-red-50/30 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all resize-none"
+                                    />
+                                    <div className="flex flex-col gap-2">
+                                      <motion.button
+                                        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                                        onClick={() => handleReject(student.id)}
+                                        disabled={actionLoading}
+                                        className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl font-medium shadow-lg shadow-red-500/20 disabled:opacity-50 transition-all text-sm"
+                                      >
+                                        <XMarkIcon className="w-4 h-4" />
+                                        Confirm
+                                      </motion.button>
+                                      <button
+                                        onClick={() => { setSelectedRejectId(null); setRejectReason(''); }}
+                                        className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <motion.button
+                                    whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
+                                    onClick={() => setSelectedRejectId(student.id)}
+                                    className="flex items-center gap-2 px-5 py-2.5 text-red-500 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-all text-sm font-medium"
+                                  >
+                                    <XMarkIcon className="w-4 h-4" />
+                                    Reject
+                                  </motion.button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Show approval/rejection comment for non-pending */}
+                          {student.status !== 'pending' && student.comments && (
+                            <div className="mt-4 p-3 rounded-lg bg-gray-50 text-sm text-gray-600">
+                              <div className="flex items-center gap-2 mb-1">
+                                <ChatBubbleIcon className="w-4 h-4 text-gray-400" />
+                                <span className="font-semibold text-gray-700">Your decision comment:</span>
+                              </div>
+                              {student.comments}
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </GlassCard>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+    </DashboardLayout>
   );
 }

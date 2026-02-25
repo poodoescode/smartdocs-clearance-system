@@ -3,9 +3,40 @@ import { motion } from 'framer-motion';
 import { verifyStudentID, validateImageQuality } from '../../services/idVerification';
 import { detectFace } from '../../services/faceVerification';
 
-export default function IDVerification({ onVerified, isDark }) {
+// Resize image to max dimension to speed up OCR and face detection
+// Uses PNG (lossless) to preserve text sharpness for OCR
+function resizeImage(file, maxDim = 1280) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      // If already small enough, return original
+      if (img.width <= maxDim && img.height <= maxDim) {
+        resolve(file);
+        return;
+      }
+      const scale = maxDim / Math.max(img.width, img.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        const resized = new File([blob], file.name, { type: 'image/png' });
+        console.log(`📐 Resized image: ${img.width}x${img.height} → ${canvas.width}x${canvas.height} (${(file.size / 1024).toFixed(0)}KB → ${(resized.size / 1024).toFixed(0)}KB)`);
+        resolve(resized);
+      }, 'image/png');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
+export default function IDVerification({ onVerified, isDark, firstName, lastName }) {
   const [uploading, setUploading] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
+  const [processingStage, setProcessingStage] = useState(''); // 'ocr' | 'face_detect'
   const [verificationResult, setVerificationResult] = useState(null);
   const [idPhoto, setIdPhoto] = useState(null);
   const [idPreview, setIdPreview] = useState(null);
@@ -16,12 +47,20 @@ export default function IDVerification({ onVerified, isDark }) {
     setUploading(true);
     setVerificationResult(null);
     setOcrProgress(0);
+    setProcessingStage('ocr');
 
     try {
+      // Step 0: Resize image for faster processing (1280px with lossless PNG for OCR quality)
+      console.log('📐 Resizing image for faster processing...');
+      const processFile = await resizeImage(file, 1280);
+
+      // Yield to let UI update
+      await new Promise(r => setTimeout(r, 0));
+
       // Step 1: Validate image quality
       console.log('📸 Validating image quality...');
-      const qualityCheck = await validateImageQuality(file);
-      
+      const qualityCheck = await validateImageQuality(processFile);
+
       if (!qualityCheck.valid) {
         setVerificationResult({
           success: false,
@@ -33,7 +72,7 @@ export default function IDVerification({ onVerified, isDark }) {
 
       // Step 2: Verify it's a valid ISU student ID using OCR
       console.log('🔍 Verifying ID format...');
-      const idVerification = await verifyStudentID(file, (progress) => {
+      const idVerification = await verifyStudentID(processFile, (progress) => {
         setOcrProgress(progress);
       });
 
@@ -48,9 +87,47 @@ export default function IDVerification({ onVerified, isDark }) {
 
       console.log('✅ Valid ISU ID detected!');
 
+      // Step 2.5: Verify name on ID matches the name entered in the form
+      if (firstName && lastName) {
+        const ocrText = (idVerification.details?.extractedText || '').toLowerCase();
+        const formLastName = lastName.trim().toLowerCase();
+        const formFirstName = firstName.trim().toLowerCase();
+
+        console.log(`🔍 Checking name match - Form: "${formFirstName} ${formLastName}" vs OCR text`);
+        console.log(`📝 OCR text for name check: "${ocrText}"`);
+
+        // Check if last name appears in the OCR text (full or partial 3+ chars)
+        const lastNameFound = ocrText.includes(formLastName) ||
+          (formLastName.length >= 3 && ocrText.includes(formLastName.substring(0, 3)));
+
+        // Check if first name appears in the OCR text (full or partial 3+ chars)
+        const firstNameFound = ocrText.includes(formFirstName) ||
+          (formFirstName.length >= 3 && ocrText.includes(formFirstName.substring(0, 3)));
+
+        console.log(`  Last name "${formLastName}" found: ${lastNameFound ? '✅' : '❌'}`);
+        console.log(`  First name "${formFirstName}" found: ${firstNameFound ? '✅' : '❌'}`);
+
+        // Reject if NEITHER first nor last name found in the OCR text
+        // This means the ID clearly belongs to someone else
+        if (!lastNameFound && !firstNameFound) {
+          setVerificationResult({
+            success: false,
+            message: `❌ Name mismatch! The name on your ID does not match "${firstName} ${lastName}". Please use your own student ID.`
+          });
+          setUploading(false);
+          return;
+        }
+      }
+
+      // Yield to let UI update with "Detecting face" message before heavy work
+      setOcrProgress(100);
+      setProcessingStage('face_detect');
+      // requestAnimationFrame ensures the browser paints the new text, then 200ms extra buffer
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 200)));
+
       // Step 3: Detect face in ID for later comparison
       console.log('👤 Detecting face in ID...');
-      const faceDetection = await detectFace(file);
+      const faceDetection = await detectFace(processFile);
 
       if (!faceDetection.success) {
         setVerificationResult({
@@ -63,7 +140,7 @@ export default function IDVerification({ onVerified, isDark }) {
 
       console.log('✅ Face detected in ID!');
 
-      // Step 4: Success - both ID format and face verified
+      // Step 4: Success - both ID format, name, and face verified
       setIdPhoto(file);
       setIdPreview(URL.createObjectURL(file));
       setVerificationResult({
@@ -108,11 +185,10 @@ export default function IDVerification({ onVerified, isDark }) {
         </div>
 
         {/* Upload Area */}
-        <div className={`border-2 border-dashed rounded-2xl p-8 text-center transition-colors ${
-          isDark 
-            ? 'border-slate-600 hover:border-blue-500 bg-slate-900/50' 
-            : 'border-gray-300 hover:border-blue-500 bg-gray-50'
-        }`}>
+        <div className={`border-2 border-dashed rounded-2xl p-8 text-center transition-colors ${isDark
+          ? 'border-slate-600 hover:border-blue-500 bg-slate-900/50'
+          : 'border-gray-300 hover:border-blue-500 bg-gray-50'
+          }`}>
           <input
             type="file"
             accept="image/*"
@@ -123,13 +199,12 @@ export default function IDVerification({ onVerified, isDark }) {
           />
           <label
             htmlFor="id-upload"
-            className={`cursor-pointer inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold transition-all ${
-              uploading
-                ? 'bg-gray-400 cursor-not-allowed'
-                : isDark
+            className={`cursor-pointer inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold transition-all ${uploading
+              ? 'bg-gray-400 cursor-not-allowed'
+              : isDark
                 ? 'bg-blue-500 hover:bg-blue-600 text-white'
                 : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
+              }`}
           >
             {uploading ? (
               <>
@@ -154,8 +229,8 @@ export default function IDVerification({ onVerified, isDark }) {
           </p>
         </div>
 
-        {/* OCR Progress Bar */}
-        {uploading && ocrProgress > 0 && (
+        {/* Progress Bar */}
+        {uploading && (ocrProgress > 0 || processingStage === 'face_detect') && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -163,20 +238,25 @@ export default function IDVerification({ onVerified, isDark }) {
           >
             <div className="flex justify-between text-sm mb-2">
               <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>
-                Reading ID text...
+                {processingStage === 'face_detect' ? 'Detecting face in ID...' : 'Reading ID text...'}
               </span>
               <span className={`font-semibold ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
-                {ocrProgress}%
+                {processingStage === 'face_detect' ? '✓' : `${ocrProgress}%`}
               </span>
             </div>
             <div className={`w-full rounded-full h-2 overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-gray-200'}`}>
               <motion.div
-                className="bg-blue-500 h-full rounded-full"
+                className={`h-full rounded-full ${processingStage === 'face_detect' ? 'bg-green-500' : 'bg-blue-500'}`}
                 initial={{ width: 0 }}
-                animate={{ width: `${ocrProgress}%` }}
+                animate={{ width: processingStage === 'face_detect' ? '100%' : `${ocrProgress}%` }}
                 transition={{ duration: 0.3 }}
               />
             </div>
+            {processingStage === 'face_detect' && (
+              <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                This may take a few seconds...
+              </p>
+            )}
           </motion.div>
         )}
 
@@ -185,15 +265,14 @@ export default function IDVerification({ onVerified, isDark }) {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`mt-6 p-4 rounded-xl border ${
-              verificationResult.success
-                ? isDark
-                  ? 'bg-green-500/10 border-green-500/30 text-green-400'
-                  : 'bg-green-50 border-green-200 text-green-800'
-                : isDark
+            className={`mt-6 p-4 rounded-xl border ${verificationResult.success
+              ? isDark
+                ? 'bg-green-500/10 border-green-500/30 text-green-400'
+                : 'bg-green-50 border-green-200 text-green-800'
+              : isDark
                 ? 'bg-red-500/10 border-red-500/30 text-red-400'
                 : 'bg-red-50 border-red-200 text-red-800'
-            }`}
+              }`}
           >
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0">

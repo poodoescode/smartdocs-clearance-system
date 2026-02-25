@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import ReCAPTCHA from 'react-google-recaptcha';
 import { loadFaceModels } from '../../services/faceVerification';
 import IDVerification from './IDVerification';
@@ -101,20 +101,34 @@ const YEAR_LEVEL_OPTIONS = [
 ];
 
 export default function SignupFormWithFaceVerification({ onSwitchMode, isDark }) {
-  // Multi-step state
-  const [currentStep, setCurrentStep] = useState(1); // 1: Form, 2: ID, 3: Selfie
+  // Multi-step state - restore from sessionStorage
+  const [currentStep, setCurrentStep] = useState(() => {
+    const saved = sessionStorage.getItem('signupStep');
+    if (saved) {
+      const step = parseInt(saved, 10);
+      // If they were on step 3 (face verify), send back to step 2 since descriptor can't be saved
+      return step >= 3 ? 2 : step;
+    }
+    return 1;
+  });
   const [modelsLoading, setModelsLoading] = useState(true);
 
-  // Form data
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    studentNumber: '',
-    course: '',
-    yearLevel: ''
+  // Form data - restore from sessionStorage
+  const [formData, setFormData] = useState(() => {
+    const saved = sessionStorage.getItem('signupFormData');
+    if (saved) {
+      try { return JSON.parse(saved); } catch { /* ignore */ }
+    }
+    return {
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      studentNumber: '',
+      course: '',
+      yearLevel: ''
+    };
   });
 
   // Face verification data
@@ -126,6 +140,15 @@ export default function SignupFormWithFaceVerification({ onSwitchMode, isDark })
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const recaptchaRef = useRef(null);
+
+  // Persist step and form data to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('signupStep', String(currentStep));
+  }, [currentStep]);
+
+  useEffect(() => {
+    sessionStorage.setItem('signupFormData', JSON.stringify(formData));
+  }, [formData]);
 
   // Load face detection models on mount
   useEffect(() => {
@@ -208,7 +231,7 @@ export default function SignupFormWithFaceVerification({ onSwitchMode, isDark })
     setLoading(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/signup-student`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/signup-student`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -241,6 +264,8 @@ export default function SignupFormWithFaceVerification({ onSwitchMode, isDark })
       }
 
       // Reset and go to login
+      sessionStorage.removeItem('signupStep');
+      sessionStorage.removeItem('signupFormData');
       setTimeout(() => {
         if (onSwitchMode) onSwitchMode();
       }, 2000);
@@ -258,23 +283,21 @@ export default function SignupFormWithFaceVerification({ onSwitchMode, isDark })
     <div className="flex items-center justify-center mb-8">
       {[1, 2, 3].map((step) => (
         <div key={step} className="flex items-center">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${
-            currentStep >= step
-              ? isDark
-                ? 'bg-green-500 text-white'
-                : 'bg-green-600 text-white'
-              : isDark
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${currentStep >= step
+            ? isDark
+              ? 'bg-green-500 text-white'
+              : 'bg-green-600 text-white'
+            : isDark
               ? 'bg-slate-700 text-slate-400'
               : 'bg-gray-200 text-gray-500'
-          }`}>
+            }`}>
             {step}
           </div>
           {step < 3 && (
-            <div className={`w-16 h-1 mx-2 ${
-              currentStep > step
-                ? isDark ? 'bg-green-500' : 'bg-green-600'
-                : isDark ? 'bg-slate-700' : 'bg-gray-200'
-            }`} />
+            <div className={`w-16 h-1 mx-2 ${currentStep > step
+              ? isDark ? 'bg-green-500' : 'bg-green-600'
+              : isDark ? 'bg-slate-700' : 'bg-gray-200'
+              }`} />
           )}
         </div>
       ))}
@@ -318,11 +341,10 @@ export default function SignupFormWithFaceVerification({ onSwitchMode, isDark })
                 value={formData.firstName}
                 onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                 required
-                className={`w-full border rounded-xl px-4 py-3 outline-none ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-700 text-white focus:border-green-500'
-                    : 'bg-white border-gray-200 text-gray-900 focus:border-green-500'
-                }`}
+                className={`w-full border rounded-xl px-4 py-3 outline-none ${isDark
+                  ? 'bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500'
+                  : 'bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500'
+                  }`}
               />
             </div>
 
@@ -335,11 +357,10 @@ export default function SignupFormWithFaceVerification({ onSwitchMode, isDark })
                 value={formData.lastName}
                 onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                 required
-                className={`w-full border rounded-xl px-4 py-3 outline-none ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-700 text-white focus:border-green-500'
-                    : 'bg-white border-gray-200 text-gray-900 focus:border-green-500'
-                }`}
+                className={`w-full border rounded-xl px-4 py-3 outline-none ${isDark
+                  ? 'bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500'
+                  : 'bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500'
+                  }`}
               />
             </div>
           </div>
@@ -353,11 +374,10 @@ export default function SignupFormWithFaceVerification({ onSwitchMode, isDark })
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase() })}
               required
-              className={`w-full border rounded-xl px-4 py-3 outline-none ${
-                isDark
-                  ? 'bg-slate-900 border-slate-700 text-white focus:border-green-500'
-                  : 'bg-white border-gray-200 text-gray-900 focus:border-green-500'
-              }`}
+              className={`w-full border rounded-xl px-4 py-3 outline-none ${isDark
+                ? 'bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500'
+                : 'bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500'
+                }`}
             />
           </div>
 
@@ -373,11 +393,10 @@ export default function SignupFormWithFaceVerification({ onSwitchMode, isDark })
                 onFocus={() => setIsPasswordFocused(true)}
                 onBlur={() => setIsPasswordFocused(false)}
                 required
-                className={`w-full border rounded-xl px-4 py-3 outline-none ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-700 text-white focus:border-green-500'
-                    : 'bg-white border-gray-200 text-gray-900 focus:border-green-500'
-                }`}
+                className={`w-full border rounded-xl px-4 py-3 outline-none ${isDark
+                  ? 'bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500'
+                  : 'bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500'
+                  }`}
               />
               <button
                 type="button"
@@ -391,6 +410,38 @@ export default function SignupFormWithFaceVerification({ onSwitchMode, isDark })
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                 )}
               </button>
+              {/* Password match indicator */}
+              <div className="absolute right-12 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
+                <AnimatePresence mode="popLayout">
+                  {formData.password && formData.confirmPassword && formData.password === formData.confirmPassword ? (
+                    <motion.div
+                      key="match"
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0, transition: { duration: 0.1 } }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                      className="text-green-500"
+                    >
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </motion.div>
+                  ) : formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword ? (
+                    <motion.div
+                      key="mismatch"
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0, transition: { duration: 0.1 } }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                      className="text-red-500"
+                    >
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
+              </div>
             </div>
             <PasswordStrengthMeter password={formData.password} isVisible={isPasswordFocused} isDark={isDark} />
           </div>
@@ -405,11 +456,10 @@ export default function SignupFormWithFaceVerification({ onSwitchMode, isDark })
                 value={formData.confirmPassword}
                 onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                 required
-                className={`w-full border rounded-xl px-4 py-3 outline-none ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-700 text-white focus:border-green-500'
-                    : 'bg-white border-gray-200 text-gray-900 focus:border-green-500'
-                }`}
+                className={`w-full border rounded-xl px-4 py-3 outline-none ${isDark
+                  ? 'bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500'
+                  : 'bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500'
+                  }`}
               />
               <button
                 type="button"
@@ -423,6 +473,38 @@ export default function SignupFormWithFaceVerification({ onSwitchMode, isDark })
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                 )}
               </button>
+              {/* Password match indicator */}
+              <div className="absolute right-12 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
+                <AnimatePresence mode="popLayout">
+                  {formData.password && formData.confirmPassword && formData.password === formData.confirmPassword ? (
+                    <motion.div
+                      key="match"
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0, transition: { duration: 0.1 } }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                      className="text-green-500"
+                    >
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </motion.div>
+                  ) : formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword ? (
+                    <motion.div
+                      key="mismatch"
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0, transition: { duration: 0.1 } }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                      className="text-red-500"
+                    >
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
+              </div>
             </div>
           </div>
 
@@ -436,11 +518,10 @@ export default function SignupFormWithFaceVerification({ onSwitchMode, isDark })
               onChange={(e) => setFormData({ ...formData, studentNumber: e.target.value })}
               placeholder="e.g., 21-3243 or 23-3174-TS"
               required
-              className={`w-full border rounded-xl px-4 py-3 outline-none ${
-                isDark
-                  ? 'bg-slate-900 border-slate-700 text-white focus:border-green-500'
-                  : 'bg-white border-gray-200 text-gray-900 focus:border-green-500'
-              }`}
+              className={`w-full border rounded-xl px-4 py-3 outline-none ${isDark
+                ? 'bg-slate-900 border-slate-700 text-white caret-green-500 focus:border-green-500'
+                : 'bg-white border-gray-200 text-gray-900 caret-green-500 focus:border-green-500'
+                }`}
             />
           </div>
 
@@ -497,14 +578,13 @@ export default function SignupFormWithFaceVerification({ onSwitchMode, isDark })
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 20 }}
         >
-          <IDVerification onVerified={handleIDVerified} isDark={isDark} />
+          <IDVerification onVerified={handleIDVerified} isDark={isDark} firstName={formData.firstName} lastName={formData.lastName} />
           <button
             onClick={() => setCurrentStep(1)}
-            className={`mt-4 w-full py-3 rounded-full font-semibold ${
-              isDark
-                ? 'bg-slate-700 hover:bg-slate-600 text-white'
-                : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
-            }`}
+            className={`mt-4 w-full py-3 rounded-full font-semibold ${isDark
+              ? 'bg-slate-700 hover:bg-slate-600 text-white'
+              : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+              }`}
           >
             ← Back to Form
           </button>
@@ -526,13 +606,12 @@ export default function SignupFormWithFaceVerification({ onSwitchMode, isDark })
           <button
             onClick={() => setCurrentStep(2)}
             disabled={loading}
-            className={`mt-4 w-full py-3 rounded-full font-semibold ${
-              loading
-                ? 'bg-gray-400 cursor-not-allowed'
-                : isDark
+            className={`mt-4 w-full py-3 rounded-full font-semibold ${loading
+              ? 'bg-gray-400 cursor-not-allowed'
+              : isDark
                 ? 'bg-slate-700 hover:bg-slate-600 text-white'
                 : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
-            }`}
+              }`}
           >
             ← Back to ID Upload
           </button>

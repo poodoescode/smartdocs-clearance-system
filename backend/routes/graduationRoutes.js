@@ -70,11 +70,56 @@ router.post('/apply', async (req, res) => {
 
     if (error) throw error;
 
-    // Professor approvals are auto-created by database trigger
+    // Auto-assign ALL professors to this graduation request
+    const { data: professors } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .eq('role', 'professor')
+      .eq('account_enabled', true);
+
+    if (professors && professors.length > 0) {
+      // Create student_professors links
+      const studentProfLinks = professors.map(p => ({
+        student_id,
+        professor_id: p.id,
+        course_code: 'GRAD',
+        course_name: p.full_name + ' Clearance',
+        is_active: true
+      }));
+
+      await supabase
+        .from('student_professors')
+        .upsert(studentProfLinks, { onConflict: 'student_id,professor_id', ignoreDuplicates: true });
+
+      // Create professor_approvals for this request
+      const approvalRecords = professors.map(p => ({
+        request_id: request.id,
+        professor_id: p.id,
+        status: 'pending'
+      }));
+
+      const { error: approvalError } = await supabase
+        .from('professor_approvals')
+        .insert(approvalRecords);
+
+      if (approvalError) {
+        console.warn('Professor approvals insert warning:', approvalError.message);
+      }
+
+      // Update the professors count on the request
+      await supabase
+        .from('requests')
+        .update({
+          professors_total_count: professors.length,
+          professors_approved_count: 0
+        })
+        .eq('id', request.id);
+    }
 
     res.json({
       success: true,
       request,
+      professorsAssigned: professors?.length || 0,
       message: 'Graduation clearance application submitted successfully'
     });
 
@@ -150,13 +195,34 @@ router.get('/status/:studentId', async (req, res) => {
     const { studentId } = req.params;
 
     // Get clearance request with all details
-    const { data: request, error } = await supabase
+    let request = null;
+
+    // Try clearance_status_view first, fallback to requests table
+    const { data: viewData, error: viewError } = await supabase
       .from('clearance_status_view')
       .select('*')
       .eq('student_id', studentId)
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error;
+    if (viewError && viewError.code === 'PGRST204') {
+      // View doesn't exist, fallback to requests table
+      const { data: reqData, error: reqError } = await supabase
+        .from('requests')
+        .select('*')
+        .eq('student_id', studentId)
+        .eq('clearance_type', 'graduation')
+        .eq('is_completed', false)
+        .single();
+
+      if (reqError && reqError.code !== 'PGRST116') throw reqError;
+      if (reqData) {
+        request = { ...reqData, request_id: reqData.id };
+      }
+    } else if (viewError && viewError.code !== 'PGRST116') {
+      throw viewError;
+    } else {
+      request = viewData;
+    }
 
     if (!request) {
       return res.json({
@@ -171,6 +237,7 @@ router.get('/status/:studentId', async (req, res) => {
       .from('professor_approvals')
       .select(`
         id,
+        professor_id,
         status,
         comments,
         approved_at,
@@ -179,13 +246,54 @@ router.get('/status/:studentId', async (req, res) => {
           email
         )
       `)
-      .eq('request_id', request.request_id);
+      .eq('request_id', request.request_id || request.id);
+
+    // Compute professor counts
+    const approvals = professorApprovals || [];
+    const professorsApprovedCount = approvals.filter(a => a.status === 'approved').length;
+    const professorsTotalCount = approvals.length;
+
+    // Compute current stage if not already set
+    if (!request.current_stage) {
+      if (request.professors_status !== 'approved') {
+        request.current_stage = 'Professors Approval';
+      } else if (request.library_status !== 'approved') {
+        request.current_stage = 'Library Clearance';
+      } else if (request.cashier_status !== 'approved') {
+        request.current_stage = 'Cashier Clearance';
+      } else if (request.registrar_status !== 'approved') {
+        request.current_stage = 'Registrar Final Approval';
+      } else {
+        request.current_stage = 'Completed';
+      }
+    }
+
+    // Ensure counts are on the request object for the frontend
+    request.professors_approved_count = professorsApprovedCount;
+    request.professors_total_count = professorsTotalCount;
+
+    // Fetch comment counts for this request (unresolved/total)
+    let unresolvedCommentCount = 0;
+    let totalCommentCount = 0;
+    try {
+      const { data: commentData } = await supabase
+        .from('clearance_comments')
+        .select('id, is_resolved')
+        .eq('clearance_request_id', request.request_id || request.id);
+
+      totalCommentCount = (commentData || []).length;
+      unresolvedCommentCount = (commentData || []).filter(c => !c.is_resolved).length;
+    } catch (commentErr) {
+      console.warn('Could not fetch comment counts:', commentErr.message);
+    }
 
     res.json({
       success: true,
       hasRequest: true,
       request,
-      professorApprovals: professorApprovals || []
+      professorApprovals: approvals,
+      unresolvedCommentCount,
+      totalCommentCount
     });
 
   } catch (error) {
@@ -740,7 +848,7 @@ router.get('/admin/professors', async (req, res) => {
   try {
     const { data: professors, error } = await supabase
       .from('profiles')
-      .select('id, full_name, email, is_active')
+      .select('id, full_name, email, account_enabled')
       .eq('role', 'professor')
       .order('full_name');
 

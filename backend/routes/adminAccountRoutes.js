@@ -82,16 +82,20 @@ router.post('/approve-account', async (req, res) => {
 
     if (error) throw error;
 
-    // Log the action
-    await supabase.from('auth_audit_log').insert({
-      user_id: userId,
-      action: 'account_approved_by_admin',
-      success: true,
-      metadata: {
-        approved_by: adminId,
-        admin_role: admin.role
-      }
-    });
+    // Log the action (non-blocking)
+    try {
+      await supabase.from('auth_audit_log').insert({
+        user_id: userId,
+        action: 'account_approved_by_admin',
+        success: true,
+        metadata: {
+          approved_by: adminId,
+          admin_role: admin.role
+        }
+      });
+    } catch (logError) {
+      console.warn('Auth audit log insert failed:', logError.message);
+    }
 
     // TODO: Send email notification to student
     // await sendApprovalEmail(data.email, data.full_name);
@@ -151,26 +155,32 @@ router.post('/reject-account', async (req, res) => {
       .update({
         verification_status: 'rejected',
         account_enabled: false,
-        rejection_reason: reason,
-        updated_at: new Date().toISOString()
+        rejection_reason: reason
       })
       .eq('id', userId)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase reject error details:', error);
+      throw error;
+    }
 
-    // Log the action
-    await supabase.from('auth_audit_log').insert({
-      user_id: userId,
-      action: 'account_rejected_by_admin',
-      success: true,
-      metadata: {
-        rejected_by: adminId,
-        admin_role: admin.role,
-        reason: reason
-      }
-    });
+    // Log the action (non-blocking)
+    try {
+      await supabase.from('auth_audit_log').insert({
+        user_id: userId,
+        action: 'account_rejected_by_admin',
+        success: true,
+        metadata: {
+          rejected_by: adminId,
+          admin_role: admin.role,
+          reason: reason
+        }
+      });
+    } catch (logError) {
+      console.warn('Auth audit log insert failed:', logError.message);
+    }
 
     // TODO: Send email notification to student
     // await sendRejectionEmail(data.email, data.full_name, reason);
@@ -185,7 +195,7 @@ router.post('/reject-account', async (req, res) => {
     console.error('Error rejecting account:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to reject account'
+      error: error.message || 'Failed to reject account'
     });
   }
 });
